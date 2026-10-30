@@ -242,12 +242,12 @@ export default function App() {
     <div className="crt flex h-full min-h-0 overflow-hidden bg-ink" style={safeArea}>
       <a href="#main-content" className="skip-link">跳到主要内容</a>
       {/* 桌面侧栏：移动端隐藏，避免占用宝贵的横向空间 */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r-2 border-edge bg-panel md:flex">
-        <div className="border-b-2 border-edge px-4 py-4">
+      <aside className="hidden min-h-0 w-56 shrink-0 flex-col border-r-2 border-edge bg-panel md:flex">
+        <div className="shrink-0 border-b-2 border-edge px-4 py-4">
           <div className="text-px24 text-gold">单词勇者</div>
           <div className="text-px12 text-dim">WordQuest · 四六级词汇与练习</div>
         </div>
-        <nav className="flex-1 space-y-1 p-2" aria-label="主导航">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2" aria-label="主导航">
           {TABS.map((t) => {
             const active = view === 'main' && tab === t.id
             return (
@@ -258,7 +258,7 @@ export default function App() {
                   setTab(t.id)
                 }}
                 aria-current={active ? 'page' : undefined}
-                className={`flex w-full items-center gap-2 border-2 px-2 py-2 text-left text-px12 ${
+                className={`flex min-h-[44px] w-full items-center gap-2 border-2 px-2 py-2 text-left text-px12 ${
                   active ? 'border-gold bg-panel-2 text-gold' : 'border-transparent text-dim hover:text-bright'
                 }`}
               >
@@ -270,7 +270,7 @@ export default function App() {
           <button
             onClick={() => setView('settings')}
             aria-current={view === 'settings' ? 'page' : undefined}
-            className={`flex w-full items-center gap-2 border-2 px-2 py-2 text-left text-px12 ${
+            className={`flex min-h-[44px] w-full items-center gap-2 border-2 px-2 py-2 text-left text-px12 ${
               view === 'settings' ? 'border-gold bg-panel-2 text-gold' : 'border-transparent text-dim hover:text-bright'
             }`}
           >
@@ -278,7 +278,7 @@ export default function App() {
             设置
           </button>
         </nav>
-        <div className="border-t-2 border-edge px-3 py-3 text-px12 text-dim">
+        <div className="shrink-0 border-t-2 border-edge px-3 py-3 text-px12 text-dim" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           <div className="text-bright">
             LV.{lp.level} · {rank.rank.code} {rank.rank.name}
           </div>

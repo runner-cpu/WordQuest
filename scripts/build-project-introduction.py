@@ -3,14 +3,16 @@
 from pathlib import Path
 import html
 import re
+from urllib.parse import urlsplit
 
-from reportlab.lib import colors
+from reportlab.lib import colors, textsplit
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, StyleSheet1
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate
+from reportlab.platypus import paragraph as paragraph_layout
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,11 +21,39 @@ OUTPUT = ROOT / "output" / "pdf" / "WordQuest-项目介绍.pdf"
 
 
 def inline(text: str) -> str:
-    escaped = html.escape(text.strip())
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+    tokens = re.compile(r"\*\*(.+?)\*\*|\[([^\]\n]+)\]\((https?://[^\s<>]+?)\)", re.IGNORECASE)
+
+    def render(value: str) -> str:
+        parts = []
+        cursor = 0
+        for token in tokens.finditer(value):
+            parts.append(html.escape(value[cursor:token.start()]))
+            bold, label, target = token.groups()
+            if bold is not None:
+                parts.append(f"<b>{render(bold)}</b>")
+            else:
+                try:
+                    parsed = urlsplit(target)
+                    safe = parsed.scheme.lower() in {"http", "https"} and bool(parsed.hostname)
+                    safe = safe and not any(ord(char) < 32 or ord(char) == 127 for char in target)
+                except ValueError:
+                    safe = False
+                if safe:
+                    href = html.escape(target, quote=True)
+                    parts.append(f'<link href="{href}" color="#2D5D8C"><u>{render(label)}</u></link>')
+                else:
+                    parts.append(html.escape(token.group(0)))
+            cursor = token.end()
+        parts.append(html.escape(value[cursor:]))
+        return "".join(parts)
+
+    return render(text.strip())
 
 
 def build() -> None:
+    # ReportLab's CJK defaults omit these common Chinese full-width marks.
+    textsplit.ALL_CANNOT_START += "，；：？！"
+    paragraph_layout.ALL_CANNOT_START = textsplit.ALL_CANNOT_START
     pdfmetrics.registerFont(TTFont("YaHei", "C:/Windows/Fonts/msyh.ttc", subfontIndex=0))
     pdfmetrics.registerFont(TTFont("YaHeiBold", "C:/Windows/Fonts/msyhbd.ttc", subfontIndex=0))
     pdfmetrics.registerFontFamily("YaHei", normal="YaHei", bold="YaHeiBold", italic="YaHei", boldItalic="YaHeiBold")

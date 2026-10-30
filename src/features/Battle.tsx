@@ -769,7 +769,7 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
                   <ul className="space-y-1">
                     {wordRoots.slice(0, 3).map((r) => (
                       <li key={r.id} className="flex items-baseline gap-2 text-px12">
-                        <span className="shrink-0 text-gold">{r.form}</span>
+                        <span className="min-w-0 max-w-[40%] break-words text-gold">{r.form}</span>
                         <span className="text-dim">{r.cls}</span>
                         <span className={`min-w-0 flex-1 truncate ${r.meaningZh ? 'text-bright' : 'text-dim'}`}>
                           {r.meaning}

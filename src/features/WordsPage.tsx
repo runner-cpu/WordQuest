@@ -413,7 +413,7 @@ export function WordsPage() {
               value={rootQuery}
               onChange={(e) => setRootQuery(e.target.value)}
               placeholder="例如 spect、看、-less"
-              className="pixel-input w-full px-3 py-2"
+              className="pixel-input readable w-full px-3 py-2 !text-[16px]"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
@@ -436,7 +436,7 @@ export function WordsPage() {
                         onClick={() => setOpenRoot(open ? null : r.id)}
                         aria-expanded={open}
                       >
-                        <span className="shrink-0 text-gold">{r.form}</span>
+                        <span className="min-w-0 max-w-[55%] break-words text-gold">{r.form}</span>
                         <span
                           className={`min-w-0 flex-1 truncate ${r.meaningZh ? 'text-bright' : 'text-dim'}`}
                           title={r.meaningZh ? undefined : '原表为英文释义'}
@@ -447,6 +447,7 @@ export function WordsPage() {
                       </button>
                       {open && (
                         <div className="pb-2">
+                          <p className="readable mb-2 break-words text-[16px] leading-relaxed text-bright">{r.meaning}</p>
                           {r.origin && <div className="mb-1 text-px12 text-dim">语源：{r.origin}</div>}
                           {r.examples.length > 0 ? (
                             <>
@@ -455,7 +456,7 @@ export function WordsPage() {
                                 {r.examples.map((ex) => (
                                   <span
                                     key={ex}
-                                    className="border-2 border-edge px-2 py-1 text-px12 text-bright"
+                                    className="max-w-full break-words border-2 border-edge px-2 py-1 text-px12 text-bright"
                                   >
                                     {ex}
                                   </span>
@@ -493,7 +494,7 @@ export function WordsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="例如 aban"
-              className="pixel-input w-full px-3 py-2"
+              className="pixel-input readable w-full px-3 py-2 !text-[16px]"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
