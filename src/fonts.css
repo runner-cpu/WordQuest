@@ -1,0 +1,18 @@
+/* Fusion Pixel Font — SIL OFL 1.1 (https://github.com/TakWolf/fusion-pixel-font)
+   已按实际字符集子集化（pyftsubset），版权声明见 THIRD-PARTY-NOTICES.md */
+@font-face {
+  font-family: 'FusionPixel';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/fusion-pixel.woff2') format('woff2');
+}
+
+/* 单词展示用同一套像素字（12px 比例版在长单词上可读性足够） */
+@font-face {
+  font-family: 'Monocraft';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/fusion-pixel.woff2') format('woff2');
+}

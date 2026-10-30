@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-10-27T12:20:45.448Z",
+  "source": "ECDICT (MIT) https://github.com/skywind3000/ECDICT",
+  "books": [
+    "cet4-core",
+    "cet4-full",
+    "cet6-core",
+    "cet6-full",
+    "ky-core",
+    "ielts-core"
+  ]
+}

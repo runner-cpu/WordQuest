@@ -1,0 +1,17 @@
+node_modules/
+dist/
+data/raw/
+data/npmtmp/
+data/font/
+.playwright-mcp/
+.mimosa/
+.env
+.env.*
+!.env.example
+output/verification/project-introduction/
+*.log
+!output/verification/*.log
+.DS_Store
+
+*.tsbuildinfo
+src/data/taster.ts

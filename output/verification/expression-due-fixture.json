@@ -1,0 +1,27 @@
+{
+  "app": "wordquest",
+  "schemaVersion": 5,
+  "fixture": "Synthetic expression due-date verification only",
+  "data": {
+    "reviewLogs": [],
+    "expressions": [
+      {
+        "id": "work-first-day-say-1",
+        "sceneId": "work-first-day",
+        "attempts": 1,
+        "firstPracticedAt": 1793246400000,
+        "lastPracticedAt": 1793246400000,
+        "dueAt": 1793289600000,
+        "stage": 1,
+        "lastScheduledDate": "2026-10-29",
+        "independentDays": [
+          "2026-10-29"
+        ],
+        "rewardedDates": [
+          "2026-10-29"
+        ],
+        "lastOutcome": "independent"
+      }
+    ]
+  }
+}
