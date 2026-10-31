@@ -1,181 +1,183 @@
-/**
- * 发音与音效。
- *
- * 关于发音：本项目不打包单词音频（四六级词库音频有版权，开源语料又与
- * 考试题材偏离），实际使用浏览器内置的语音合成（Web Speech API）。
- *
- * 一个真实的坑：很多中文 Windows 只装了中文语音包。此时 speechSynthesis
- * 拿不到任何英语 voice，如果仍然按 en-US 去 speak，浏览器会用中文音库
- * 硬读英文，听感是「没有声音」或含糊不清。因此这里必须：
- *   1. 明确挑选英语 voice；
- *   2. 找不到时告知调用方，由 UI 提示用户安装英语语音包，而不是静默失败。
- */
-
-const audioCache = new Map<string, HTMLAudioElement>()
+/** Learning playback uses bundled recordings when available, then browser speech. */
 let cachedVoice: SpeechSynthesisVoice | null = null
 let voiceResolved = false
 let muted = false
+let playbackSerial = 0
+let cancelPlayback: (() => void) | undefined
 
-export function setMuted(v: boolean) {
-  muted = v
-  localStorage.setItem('wq:muted', v ? '1' : '0')
+export function setMuted(value: boolean) {
+  muted = value
+  try { localStorage.setItem('wq:muted', value ? '1' : '0') } catch { /* private storage */ }
+  if (value) stopSpeaking()
 }
 
 export function isMuted(): boolean {
-  return muted || localStorage.getItem('wq:muted') === '1'
+  try { return muted || localStorage.getItem('wq:muted') === '1' } catch { return muted }
 }
 
-/** 英语语音的偏好排序：本地 > 网络，美音 > 英音 > 其他英语 */
-function scoreVoice(v: SpeechSynthesisVoice): number {
-  let score = 0
-  if (v.localService) score += 100
-  if (v.lang === 'en-US') score += 40
-  else if (v.lang === 'en-GB') score += 30
-  else if (v.lang.startsWith('en')) score += 20
-  // 常见的高质量语音名
-  if (/natural|neural|google|samantha|aria|jenny|guy/i.test(v.name)) score += 15
-  return score
+function scoreVoice(voice: SpeechSynthesisVoice): number {
+  return (voice.localService ? 100 : 0) + (voice.lang === 'en-US' ? 40 : voice.lang === 'en-GB' ? 30 : 20) +
+    (/natural|neural|google|samantha|aria|jenny|guy/i.test(voice.name) ? 15 : 0)
 }
 
 function englishVoices(): SpeechSynthesisVoice[] {
   if (typeof speechSynthesis === 'undefined') return []
-  return speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith('en'))
+  try { return speechSynthesis.getVoices().filter((voice) => voice.lang?.toLowerCase().startsWith('en')) } catch { return [] }
 }
 
-/**
- * 选一个英语 voice。返回 null 表示系统没有英语语音包。
- * 注意：voices 是异步加载的，首次调用可能为空，所以这里不缓存 null。
- */
 export function pickEnglishVoice(): SpeechSynthesisVoice | null {
-  if (cachedVoice) return cachedVoice
   const list = englishVoices()
-  if (list.length === 0) {
-    voiceResolved = true
-    return null
-  }
-  list.sort((a, b) => scoreVoice(b) - scoreVoice(a))
-  cachedVoice = list[0]
   voiceResolved = true
+  cachedVoice = list.find((voice) => voice.voiceURI === cachedVoice?.voiceURI) ?? list.sort((a, b) => scoreVoice(b) - scoreVoice(a))[0] ?? null
   return cachedVoice
 }
 
-/** 系统是否有可用的英语语音 */
-export function hasEnglishVoice(): boolean {
-  return englishVoices().length > 0
-}
+export function hasEnglishVoice(): boolean { return englishVoices().length > 0 }
+export function needsVoiceInstall(): boolean { return voiceResolved && !hasEnglishVoice() }
 
-/** 已检测过语音且确实没有英语语音 */
-export function needsVoiceInstall(): boolean {
-  return voiceResolved && englishVoices().length === 0
-}
-
-/** 语音列表异步就绪后重新解析 */
-export function onVoicesChanged(cb: () => void): () => void {
-  if (typeof speechSynthesis === 'undefined') return () => {}
-  const handler = () => {
-    cachedVoice = null
-    voiceResolved = false
-    cb()
-  }
+export function onVoicesChanged(callback: () => void): () => void {
+  if (typeof speechSynthesis === 'undefined') return () => undefined
+  const handler = () => { cachedVoice = null; voiceResolved = false; callback() }
   speechSynthesis.addEventListener('voiceschanged', handler)
-  // 某些浏览器不触发事件，主动拉一次
-  if (speechSynthesis.getVoices().length === 0) {
-    setTimeout(handler, 300)
-  }
-  return () => speechSynthesis.removeEventListener('voiceschanged', handler)
+  const timer = setTimeout(handler, 300)
+  return () => { clearTimeout(timer); speechSynthesis.removeEventListener('voiceschanged', handler) }
 }
 
+async function waitForVoice(): Promise<SpeechSynthesisVoice | null> {
+  const voice = pickEnglishVoice()
+  if (voice || typeof speechSynthesis === 'undefined') return voice
+  return new Promise((resolve) => {
+    const synthesis = speechSynthesis
+    let finished = false
+    const finish = (voice: SpeechSynthesisVoice | null) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timeout); clearInterval(poll)
+      synthesis.removeEventListener('voiceschanged', check)
+      resolve(voice)
+    }
+    const check = () => { const voice = pickEnglishVoice(); if (voice) finish(voice) }
+    const timeout = setTimeout(() => finish(pickEnglishVoice()), 1500)
+    const poll = setInterval(check, 150)
+    synthesis.addEventListener('voiceschanged', check)
+    check()
+  })
+}
+
+export type SpeakFailure = 'muted' | 'no-voice' | 'unsupported' | 'error' | 'audio-error' | 'cancelled'
 export interface SpeakOptions {
   rate?: number
-  /** 已下载音频包的相对路径，如 audio/cet4-core/u001/abandon.opus */
+  /** Same-site recording path. Playback never requires an external TTS service. */
   src?: string
-  /** 播放结束后回调 */
+  onStart?: () => void
   onEnd?: () => void
+  onError?: (reason: SpeakFailure) => void
 }
+export interface SpeakResult { ok: boolean; reason?: SpeakFailure }
 
-export interface SpeakResult {
-  ok: boolean
-  /** 失败原因，供 UI 给出可操作的提示 */
-  reason?: 'muted' | 'no-voice' | 'unsupported' | 'error'
-}
-
-export async function speak(text: string, opts: SpeakOptions = {}): Promise<SpeakResult> {
-  if (isMuted()) return { ok: false, reason: 'muted' }
-  const { rate = 1, src, onEnd } = opts
-
-  // 1. 优先已下载的音频包（目前未启用，接口保留）
-  if (src) {
-    try {
-      const base = import.meta.env.BASE_URL || './'
-      const url = `${base.replace(/\/$/, '')}/${src}`
-      let el = audioCache.get(url)
-      if (!el) {
-        el = new Audio(url)
-        el.preload = 'auto'
-        audioCache.set(url, el)
-      }
-      el.playbackRate = rate
-      el.currentTime = 0
-      await el.play()
-      el.onended = () => onEnd?.()
-      return { ok: true }
-    } catch {
-      // 音频包缺失，继续走 TTS
-    }
-  }
-
-  // 2. 浏览器语音合成
-  if (typeof speechSynthesis === 'undefined') return { ok: false, reason: 'unsupported' }
-
-  const voice = pickEnglishVoice()
-  if (!voice) return { ok: false, reason: 'no-voice' }
-
-  speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.voice = voice
-  u.lang = voice.lang
-  u.rate = Math.min(2, Math.max(0.5, rate))
-  u.pitch = 1
-  u.onend = () => onEnd?.()
-  speechSynthesis.speak(u)
-  return { ok: true }
+export function speechErrorMessage(reason?: SpeakFailure): string {
+  if (reason === 'muted') return '当前已关闭发音，可开启声音后重试。'
+  if (reason === 'audio-error') return '录音未能播放，请检查网络后重试。'
+  if (reason === 'no-voice') return '英语语音尚不可用，可使用听力页的内置录音练习。'
+  if (reason === 'unsupported') return '此浏览器不支持朗读，可使用听力页的内置录音练习。'
+  return '朗读未能开始，请点击播放重试。'
 }
 
 export function stopSpeaking() {
+  playbackSerial++
+  cancelPlayback?.()
+  cancelPlayback = undefined
   if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
 }
 
-/**
- * 长文本朗读：按句切分、逐句排队。
- *
- * Safari 会截断超长的单条 utterance，整套听力材料必须分段读；
- * 也不能复用 speak()——它每次调用都会 cancel 掉前一句。
- */
-export async function speakLong(text: string, opts: SpeakOptions = {}): Promise<SpeakResult> {
-  if (isMuted()) return { ok: false, reason: 'muted' }
-  const { rate = 1, onEnd } = opts
-  if (typeof speechSynthesis === 'undefined') return { ok: false, reason: 'unsupported' }
-  const voice = pickEnglishVoice()
-  if (!voice) return { ok: false, reason: 'no-voice' }
-
-  const chunks = (text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [text])
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (chunks.length === 0) return { ok: false, reason: 'error' }
-
-  speechSynthesis.cancel()
-  chunks.forEach((chunk, i) => {
-    const u = new SpeechSynthesisUtterance(chunk)
-    u.voice = voice
-    u.lang = voice.lang
-    u.rate = Math.min(2, Math.max(0.5, rate))
-    u.pitch = 1
-    // 最后一句结束时才算整段播完
-    if (i === chunks.length - 1) u.onend = () => onEnd?.()
-    speechSynthesis.speak(u)
+function playRecording(src: string, opts: SpeakOptions, serial: number): Promise<SpeakResult> {
+  return new Promise((resolve) => {
+    const base = import.meta.env?.BASE_URL || './'
+    const player = new Audio(`${base.replace(/\/$/, '')}/${src.replace(/^\//, '')}`)
+    const recordingUrl = player.src
+    player.preload = 'auto'
+    player.playbackRate = Math.min(2, Math.max(0.5, opts.rate ?? 1))
+    let started = false
+    let settled = false
+    let finished = false
+    const settle = (result: SpeakResult) => { if (!settled) { settled = true; resolve(result) } }
+    const cleanup = () => { clearTimeout(timeout); player.onended = null; player.onerror = null; if (serial === playbackSerial) cancelPlayback = undefined }
+    const fail = () => {
+      if (finished || serial !== playbackSerial) return
+      finished = true; cleanup(); player.pause()
+      settle({ ok: false, reason: 'audio-error' })
+      if (started) opts.onError?.('audio-error')
+    }
+    const timeout = setTimeout(fail, 12000)
+    cancelPlayback = () => { finished = true; cleanup(); player.pause(); player.removeAttribute('src'); player.load(); settle({ ok: false, reason: 'cancelled' }) }
+    player.onended = () => { if (finished || serial !== playbackSerial) return; finished = true; cleanup(); settle({ ok: true }); opts.onEnd?.() }
+    player.onerror = fail
+    try {
+      void player.play().then(() => {
+        if (finished || serial !== playbackSerial) return
+        started = true; clearTimeout(timeout); settle({ ok: true }); opts.onStart?.()
+        // Media requests can return 206. Cache a complete 200 response for offline range playback.
+        if ('caches' in globalThis && typeof fetch !== 'undefined') void (async () => {
+          const cache = await caches.open('wq-audio-v1')
+          if ((await cache.match(recordingUrl))?.status === 200) return
+          const response = await fetch(recordingUrl)
+          if (response.status === 200) await cache.put(recordingUrl, response)
+        })().catch(() => undefined)
+      }).catch(fail)
+    } catch { fail() }
   })
-  return { ok: true }
 }
+
+async function playSpeech(text: string, opts: SpeakOptions, long: boolean): Promise<SpeakResult> {
+  if (isMuted()) return { ok: false, reason: 'muted' }
+  stopSpeaking()
+  const serial = playbackSerial
+  if (opts.src) return playRecording(opts.src, opts, serial)
+  if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return { ok: false, reason: 'unsupported' }
+  const voice = await waitForVoice()
+  if (serial !== playbackSerial) return { ok: false, reason: 'cancelled' }
+  if (!voice) return { ok: false, reason: 'no-voice' }
+  const chunks = (long ? text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [text] : [text]).map((chunk) => chunk.trim()).filter(Boolean)
+  if (!chunks.length) return { ok: false, reason: 'error' }
+  const synthesis = speechSynthesis
+  return new Promise((resolve) => {
+    let position = 0
+    let settled = false
+    let started = false
+    let finished = false
+    // Keep a strong reference until the current utterance finishes.
+    let utterance: SpeechSynthesisUtterance | undefined
+    let timeout: ReturnType<typeof setTimeout>
+    const settle = (result: SpeakResult) => { if (!settled) { settled = true; resolve(result) } }
+    const cleanup = () => { clearTimeout(timeout); if (utterance) { utterance.onstart = null; utterance.onend = null; utterance.onerror = null }; utterance = undefined; if (serial === playbackSerial) cancelPlayback = undefined }
+    const fail = () => {
+      if (finished || serial !== playbackSerial) return
+      finished = true; cleanup(); synthesis.cancel(); settle({ ok: false, reason: 'error' })
+      if (started) opts.onError?.('error')
+    }
+    cancelPlayback = () => { finished = true; cleanup(); settle({ ok: false, reason: 'cancelled' }) }
+    const next = () => {
+      if (finished || serial !== playbackSerial) return
+      utterance = new SpeechSynthesisUtterance(chunks[position])
+      utterance.voice = voice; utterance.lang = voice.lang
+      utterance.rate = Math.min(2, Math.max(0.5, opts.rate ?? 1)); utterance.pitch = 1
+      utterance.onstart = () => { clearTimeout(timeout); if (!started) { started = true; settle({ ok: true }); opts.onStart?.() } }
+      utterance.onerror = fail
+      utterance.onend = () => {
+        clearTimeout(timeout)
+        if (finished || serial !== playbackSerial) return
+        if (++position < chunks.length) next()
+        else { finished = true; cleanup(); settle({ ok: true }); opts.onEnd?.() }
+      }
+      timeout = setTimeout(fail, 7000)
+      try { if (synthesis.paused) synthesis.resume(); synthesis.speak(utterance) } catch { fail() }
+    }
+    next()
+  })
+}
+
+export function speak(text: string, opts: SpeakOptions = {}): Promise<SpeakResult> { return playSpeech(text, opts, false) }
+export function speakLong(text: string, opts: SpeakOptions = {}): Promise<SpeakResult> { return playSpeech(text, opts, true) }
 
 /** 8-bit 音效：用 Web Audio 合成，零素材体积（§7.1） */
 let ctx: AudioContext | null = null

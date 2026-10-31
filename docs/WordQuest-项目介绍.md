@@ -24,7 +24,7 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 ## 产品的主要入口
 
-网站采用“今日、单词、听力、统计、我的”五个入口。“今日”集中呈现当日词汇任务、四六级备考台和情景冒险；“单词”提供词书与关卡地图；“听力”组织原创短练并连接真题学习；“统计”帮助回顾学习积累；“我的”集中展示角色、成就和外观等内容。
+网站采用“今日、单词、听力、统计、我的”五个入口。“今日”提供词汇任务、阅读与写译真题和情景冒险；“单词”提供词书与关卡地图；“听力”按四级、六级展示近年真题，原创加练按需展开；“统计”帮助回顾学习积累；“我的”集中展示角色、成就和外观等内容。
 
 本文介绍截至 **2026 年 10 月 31 日** 的项目功能与使用范围。
 
@@ -40,7 +40,7 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 ### 听力与原创专项
 
-听力页提供按四级、六级方向组织的主题短练，以及 10 篇原创句子材料。学习者可以连续练一组，也可以只练一段，通过听音选义、选词填空和词序排列练习理解。原创内容由系统英语语音朗读，发声需要本机具备可用的英语语音包。
+听力页以近年真题为主要内容，先选四级或六级，再选年份与试卷，直接播放录音并作答。下方“原创加练”提供 4 组理解短练和 10 篇句子材料，通过听音选义、选词填空和词序排列练习理解。82 条英语合成录音随站提供，无需安装系统语音包；支持调速重听，退出即停止。
 
 四六级备考台另有 12 项原创阅读、写作和翻译短练。阅读提交后可回看证据与解析，继续订正；写作与翻译提供草稿保存、参考写法和自查步骤，鼓励学习者先形成自己的表达，再对照修订。
 
@@ -48,9 +48,9 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 备考台默认进入站内真题库，现有 **10 套高校整理第 1 套，共 550 道客观题**，来自南京大学 eol 平台。四级 6 套，覆盖 2023 年 12 月至 2026 年 6 月；六级 4 套，为 2024 年 6 月、12 月，2025 年 6 月和 2026 年 6 月。缺少部分参考答案的套卷暂未列入完整可练目录。
 
-题干、选项、文章、听力录音及参考答案随网站提供。学习者选择套卷即可在当前界面作答，无需来回切换网站。电脑左右分栏阅读与答题，手机分别滚动材料和题目。听力可按题组浏览与回听，切换题型保留播放器；写作和翻译原题与草稿同屏，参考内容按需展开。
+题干、选项、文章、听力录音及参考答案随网站提供。听力真题集中在“听力”页，阅读、写作和翻译放在首页备考台，选卷即可在当前界面作答。电脑左右分栏阅读与答题，手机分别滚动材料和题目。听力按题组浏览与回听；写作和翻译原题与草稿同屏，参考内容按需展开。
 
-提交后自动核对已作答的客观题，首次与最近记录分别保留，点击错题号即可回到原题订正。草稿和笔记自动保存，缓存本套题目与完整录音后可离线练习。高校整理版保留其参考性质；个别资料未提供写译参考文本，会明确说明。旧自带资料档案继续兼容。
+听力 25 题与阅读 30 题分别核对、保留首次和最近记录，并共享同一套草稿。点击错题号即可回到原题订正，草稿和笔记自动保存。缓存本套题目与完整录音后可离线练习。高校整理版保留其参考性质；缺少的写译参考会明确说明。旧自带资料档案继续兼容。
 
 ### 用故事承载英语的实际用途
 
@@ -95,6 +95,6 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 The application brings together spaced vocabulary review, listening practice, reading exercises, writing and translation drafts, and past-paper review. Learners can explore nine original story scenarios, practise eighteen expressions, and track progress through sixty-eight achievements. Pixel characters, stamps, stars and cosmetic rewards support an ongoing learning routine.
 
-For exam preparation, WordQuest provides ten university-hosted past papers directly inside the app, with 550 objective questions, recordings and reference answers. Learners read and answer on the same screen, check their work, and revisit mistakes. First and latest checking records remain separate. Writing and translation tasks include saved drafts and available reference texts.
+For exam preparation, WordQuest provides ten university-hosted past papers inside the app, with 550 objective questions, recordings and reference answers. Listening papers live on the Listening page; reading, writing and translation are on Today. The 25 listening questions and 30 reading questions have separate first and latest checking records, while sharing paper drafts. Original listening practice includes 82 bundled synthetic recordings that work without a browser speech pack.
 
 WordQuest works across desktop and mobile layouts and stores study records locally. Downloaded paper content and complete recordings support offline practice. The current version does not provide automated writing assessment, predicted exam scores or cloud synchronisation.

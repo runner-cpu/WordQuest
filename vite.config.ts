@@ -60,10 +60,12 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /\/audio\/.*\.(opus|mp3|ogg)$/,
+            urlPattern: /\/audio\/.*\.(opus|mp3|ogg)(\?.*)?$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'wq-audio-v1',
+              rangeRequests: true,
+              cacheableResponse: { statuses: [200] },
               expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },

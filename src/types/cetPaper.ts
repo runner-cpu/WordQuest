@@ -1,4 +1,5 @@
 export type CetPaperFileKind = 'paper' | 'answers' | 'audio'
+export type CetPaperScope = 'all' | 'listening' | 'reading'
 
 /** 用户在本机导入的文件；字节保存在 media 表中。 */
 export interface CetPaperFileRef {
@@ -32,4 +33,9 @@ export interface CetPaperStudy {
   files: Partial<Record<CetPaperFileKind, CetPaperFileRef>>
   firstSubmission?: CetPaperSubmission
   latestSubmission?: CetPaperSubmission
+  /** 分项核对独立保留首次与最近记录，共享同一份作答草稿。 */
+  sectionSubmissions?: Partial<Record<Exclude<CetPaperScope, 'all'>, {
+    first: CetPaperSubmission
+    latest: CetPaperSubmission
+  }>>
 }

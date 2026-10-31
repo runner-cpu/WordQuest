@@ -1,8 +1,20 @@
 import { CET_PAPER_SOURCES } from '../data/cetPaperSources'
 import { db } from '../db/database'
-import type { CetPaperFileKind, CetPaperFileRef, CetPaperStudy, CetPaperSubmission } from '../types/cetPaper'
+import type { CetPaperFileKind, CetPaperFileRef, CetPaperScope, CetPaperStudy, CetPaperSubmission } from '../types/cetPaper'
 
 const QUESTION_COUNT = 55
+export function cetPaperQuestionNumbers(scope: CetPaperScope = 'all'): number[] {
+  const start = scope === 'reading' ? 26 : 1
+  const end = scope === 'listening' ? 25 : QUESTION_COUNT
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+}
+
+export function cetPaperSubmissions(study: CetPaperStudy, scope: CetPaperScope = 'all') {
+  const pair = scope === 'all' ? undefined : study.sectionSubmissions?.[scope]
+  const numbers = cetPaperQuestionNumbers(scope)
+  const applicable = (submission?: CetPaperSubmission) => submission && numbers.some((number) => submission.answers[number - 1] && submission.answerKey[number - 1]) ? submission : undefined
+  return { first: pair?.first ?? applicable(study.firstSubmission), latest: pair?.latest ?? applicable(study.latestSubmission) }
+}
 const FILE_KINDS: CetPaperFileKind[] = ['paper', 'answers', 'audio']
 const PDF_LIMIT = 30 * 1024 * 1024
 const AUDIO_LIMIT = 60 * 1024 * 1024
@@ -50,6 +62,14 @@ function validSubmission(value: unknown): value is CetPaperSubmission {
   return value.answers.some((answer, index) => answer !== '' && key[index] !== '')
 }
 
+function validPair(first: unknown, latest: unknown, createdAt: number, updatedAt: number): boolean {
+  if (first === undefined && latest === undefined) return true
+  return validSubmission(first) && validSubmission(latest) &&
+    createdAt <= first.submittedAt && first.submittedAt <= latest.submittedAt && latest.submittedAt <= updatedAt &&
+    (first.submittedAt !== latest.submittedAt || first.answers.every((answer, index) =>
+      answer === latest.answers[index] && first.answerKey[index] === latest.answerKey[index]))
+}
+
 function validFileRef(value: unknown, studyId: string, kind: CetPaperFileKind): value is CetPaperFileRef {
   if (!record(value) || typeof value.id !== 'string' || !value.id.startsWith(`cet-paper:${studyId}:${kind}:`) ||
     value.id.length <= `cet-paper:${studyId}:${kind}:`.length || typeof value.name !== 'string' || !value.name.trim() ||
@@ -69,13 +89,16 @@ export function isCetPaperStudy(value: unknown): value is CetPaperStudy {
     !timestamp(value.elapsedSeconds) || !record(value.files) ||
     Object.keys(value.files).some((kind) => !FILE_KINDS.includes(kind as CetPaperFileKind) ||
       !validFileRef((value.files as Record<string, unknown>)[kind], value.id as string, kind as CetPaperFileKind))) return false
-  if (value.firstSubmission === undefined && value.latestSubmission === undefined) return true
-  const first = value.firstSubmission
-  const latest = value.latestSubmission
-  return validSubmission(first) && validSubmission(latest) &&
-    value.createdAt <= first.submittedAt && first.submittedAt <= latest.submittedAt && latest.submittedAt <= value.updatedAt &&
-    (first.submittedAt !== latest.submittedAt || first.answers.every((answer, index) =>
-      answer === latest.answers[index] && first.answerKey[index] === latest.answerKey[index]))
+  if (!validPair(value.firstSubmission, value.latestSubmission, value.createdAt, value.updatedAt)) return false
+  if (value.sectionSubmissions === undefined) return true
+  if (!record(value.sectionSubmissions)) return false
+  return Object.entries(value.sectionSubmissions).every(([scope, pair]) => {
+    if ((scope !== 'listening' && scope !== 'reading') || !record(pair) || !pair.first || !pair.latest ||
+      !validPair(pair.first, pair.latest, value.createdAt as number, value.updatedAt as number)) return false
+    const indexes = new Set(cetPaperQuestionNumbers(scope).map((number) => number - 1))
+    return [pair.first, pair.latest].every((submission) => validSubmission(submission) &&
+      submission.answers.every((answer, index) => indexes.has(index) || (answer === '' && submission.answerKey[index] === '')))
+  })
 }
 
 async function requireStudy(id: string): Promise<CetPaperStudy> {
@@ -175,17 +198,28 @@ export async function attachCetPaperFile(id: string, kind: CetPaperFileKind, fil
   })
 }
 
-export async function submitCetPaperStudy(id: string): Promise<CetPaperStudy> {
+export async function submitCetPaperStudy(id: string, scope: CetPaperScope = 'all'): Promise<CetPaperStudy> {
+  if (!['all', 'listening', 'reading'].includes(scope)) throw new Error('练习范围无效')
   return db.transaction('rw', [db.cetPapers], async () => {
     const previous = await requireStudy(id)
-    if (!previous.answers.some((answer, index) => answer !== '' && previous.answerKey[index] !== '')) {
+    const indexes = new Set(cetPaperQuestionNumbers(scope).map((number) => number - 1))
+    if (!previous.answers.some((answer, index) => indexes.has(index) && answer !== '' && previous.answerKey[index] !== '')) {
       throw new Error('请至少选择一道题的答案，并录入该题的参考答案后核对')
     }
     const submittedAt = nextTimestamp(previous.updatedAt)
-    const submission: CetPaperSubmission = { answers: [...previous.answers], answerKey: [...previous.answerKey], submittedAt }
-    const study: CetPaperStudy = {
-      ...previous, updatedAt: submittedAt,
-      firstSubmission: cloneSubmission(previous.firstSubmission ?? submission), latestSubmission: cloneSubmission(submission),
+    const mask = (values: string[]) => values.map((value, index) => indexes.has(index) ? value : '')
+    const submission: CetPaperSubmission = { answers: mask(previous.answers), answerKey: mask(previous.answerKey), submittedAt }
+    const study: CetPaperStudy = { ...previous, updatedAt: submittedAt }
+    if (scope === 'all') {
+      study.firstSubmission = cloneSubmission(previous.firstSubmission ?? submission)
+      study.latestSubmission = cloneSubmission(submission)
+    } else {
+      const legacyFirst = previous.firstSubmission
+      const inherited = legacyFirst && indexes.size && legacyFirst.answers.some((answer, index) => indexes.has(index) && answer && legacyFirst.answerKey[index])
+        ? { answers: mask(legacyFirst.answers), answerKey: mask(legacyFirst.answerKey), submittedAt: legacyFirst.submittedAt } : undefined
+      study.sectionSubmissions = { ...previous.sectionSubmissions, [scope]: {
+        first: cloneSubmission(previous.sectionSubmissions?.[scope]?.first ?? inherited ?? submission), latest: cloneSubmission(submission),
+      } }
     }
     await db.cetPapers.put(study)
     return structuredClone(study)
@@ -223,13 +257,15 @@ export function parseCetAnswerKey(text: string): { answers: string[]; errors: st
 }
 
 /** 仅核对已选且有答案键的题；未作答独立计数，不计入正确或错题。 */
-export function cetPaperResult(submission?: CetPaperSubmission): { correct: number; compared: number; unanswered: number; wrong: number[] } {
-  if (!submission) return { correct: 0, compared: 0, unanswered: QUESTION_COUNT, wrong: [] }
+export function cetPaperResult(submission?: CetPaperSubmission, scope: CetPaperScope = 'all'): { correct: number; compared: number; unanswered: number; wrong: number[] } {
+  const numbers = cetPaperQuestionNumbers(scope)
+  if (!submission) return { correct: 0, compared: 0, unanswered: numbers.length, wrong: [] }
   let correct = 0
   let compared = 0
   let unanswered = 0
   const wrong: number[] = []
-  for (let index = 0; index < QUESTION_COUNT; index++) {
+  for (const number of numbers) {
+    const index = number - 1
     const answer = submission.answers[index]
     const key = submission.answerKey[index]
     if (!answer) unanswered++
@@ -257,5 +293,12 @@ export function mergeCetPaperStudies(local: CetPaperStudy | undefined, incoming:
     files: { ...older?.files, ...newer.files },
   })
   if (first && latest) { study.firstSubmission = cloneSubmission(first); study.latestSubmission = cloneSubmission(latest) }
+  for (const scope of ['listening', 'reading'] as const) {
+    const pairs = [local?.sectionSubmissions?.[scope], incoming.sectionSubmissions?.[scope]].filter((pair) => pair !== undefined)
+    if (!pairs.length) continue
+    const first = pairs.reduce((earliest, pair) => pair.first.submittedAt < earliest.submittedAt ? pair.first : earliest, pairs[0].first)
+    const latest = pairs.reduce((last, pair) => pair.latest.submittedAt > last.submittedAt ? pair.latest : last, pairs[0].latest)
+    study.sectionSubmissions = { ...study.sectionSubmissions, [scope]: { first: cloneSubmission(first), latest: cloneSubmission(latest) } }
+  }
   return study
 }

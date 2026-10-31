@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { awardRewards } from '../core/profile'
 import { Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
-import { hasEnglishVoice, onVoicesChanged, speakLong } from '../core/audio'
+import { isMuted, setMuted, speakLong, speechErrorMessage, stopSpeaking } from '../core/audio'
+import { originalAudioPath } from '../core/originalAudio'
 import { checkAchievements } from '../core/progress'
 import type { ExamPack } from '../core/examImport'
 
@@ -29,16 +30,14 @@ export function ExamPlayer({
   const [rewardError, setRewardError] = useState<string | null>(null)
   const [rate, setRate] = useState(1)
   const [playing, setPlaying] = useState(false)
-  const [voiceReady, setVoiceReady] = useState(() => hasEnglishVoice())
+  const [starting, setStarting] = useState(false)
   const [speakError, setSpeakError] = useState<string | null>(null)
-  const [lastGroup, setLastGroup] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const startedRef = useRef(Date.now())
   const submitLock = useRef(false)
   const advanceLock = useRef(false)
   const pendingRewardCount = useRef(0)
-
-  useEffect(() => onVoicesChanged(() => setVoiceReady(hasEnglishVoice())), [])
+  const playback = useRef(0)
 
   const item = pack.items[idx]
   const score = answers.reduce((total, answer, index) => ({
@@ -47,34 +46,31 @@ export function ExamPlayer({
   }), { ok: 0, total: 0 })
 
   async function playStem(text: string) {
+    if (playing || starting) { playback.current++; stopSpeaking(); setPlaying(false); setStarting(false); return }
+    const attempt = ++playback.current
     setSpeakError(null)
-    setPlaying(true)
-    // 长材料分段朗读：Safari 会截断超长单条 utterance
+    setStarting(true)
     const res = await speakLong(text, {
       rate,
-      onEnd: () => setPlaying(false),
+      src: originalAudioPath(text),
+      onStart: () => { if (attempt === playback.current) setPlaying(true) },
+      onEnd: () => { if (attempt === playback.current) setPlaying(false) },
+      onError: (reason) => { if (attempt === playback.current) { setPlaying(false); setSpeakError(speechErrorMessage(reason)) } },
     })
-    if (!res.ok) {
+    if (attempt !== playback.current) return
+    setStarting(false)
+    if (!res.ok && res.reason !== 'cancelled') {
       setPlaying(false)
-      setSpeakError(
-        res.reason === 'no-voice'
-          ? '系统没有英语语音包，无法朗读。请在设置里查看安装方法。'
-          : res.reason === 'muted'
-            ? '当前是静音状态'
-            : '浏览器不支持语音合成',
-      )
+      setSpeakError(speechErrorMessage(res.reason))
     }
   }
 
-  /** 换材料时自动朗读一次。 */
+  /** 同段材料保留播放进度；换段、完成或退出时停止。 */
   useEffect(() => {
-    if (!item) return
-    if (item.group !== lastGroup) {
-      setLastGroup(item.group)
-      void playStem(item.stem)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, round])
+    playback.current++
+    setPlaying(false); setStarting(false)
+    return () => { playback.current++; stopSpeaking() }
+  }, [item?.group, round, done])
 
   useEffect(() => {
     setChecked(false)
@@ -132,7 +128,6 @@ export function ExamPlayer({
     setChecked(false)
     setAnswers(pack.items.map(() => null))
     setRewardError(null)
-    setLastGroup(null)
     setRound((current) => current + 1)
   }
 
@@ -205,7 +200,7 @@ export function ExamPlayer({
           <Panel>
             <div className="flex flex-wrap items-center gap-2">
               <PixelButton variant="primary" icon="speaker" onClick={() => void playStem(item.stem)}>
-                {playing ? '播放中' : '播放原文'}
+                {starting ? '取消载入' : playing ? '停止播放' : '播放原文'}
               </PixelButton>
               <div className="flex gap-1">
                 {[0.85, 1, 1.15].map((r) => (
@@ -221,9 +216,8 @@ export function ExamPlayer({
               </div>
               <span className="ml-auto text-px12 text-dim">{pack.sectionName}</span>
             </div>
-            {!voiceReady && <p className="mt-2 text-px12 text-fail">系统没有英语语音包，无法朗读</p>}
-            <p className="readable mt-2 text-px12 text-dim">系统合成语音 · 可重听、调速的理解练习</p>
-            {speakError && <p className="mt-2 text-px12 text-fail">{speakError}</p>}
+            <p className="readable mt-2 text-px12 text-dim">内置英语合成录音 · 可调速重听</p>
+            {speakError && <div className="readable mt-2" role="alert"><p className="text-fail">{speakError}</p>{isMuted() && <PixelButton size="sm" onClick={() => { setMuted(false); void playStem(item.stem) }}>开启声音并播放</PixelButton>}</div>}
           </Panel>
 
           <Panel>

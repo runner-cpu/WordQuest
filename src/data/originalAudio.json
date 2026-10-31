@@ -1,0 +1,497 @@
+{
+  "voice": "Microsoft Zira Desktop · en-US · synthetic",
+  "entries": [
+    {
+      "text": "A university in the Netherlands has replaced its bicycle parking lot with a \"green roof\" that collects rainwater. The roof, covered with grass and small plants, can hold up to forty thousand liters of water during heavy storms. University officials say the project will reduce flooding in the area and provide a quiet place for students to relax. The city plans to build two more green roofs next year.",
+      "path": "audio/original/b5a69e4cfa7cf7e1171d.mp3",
+      "bytes": 164954,
+      "sha256": "92fea4f6a3f856c1a0ffdcc95998fff9216d85a330a5d9db3f68cec2b643f944"
+    },
+    {
+      "text": "M: Hi Lisa, I heard the library will stay open until midnight during the exam weeks.\nW: Really? That is great news. But is the coffee shop inside the library also open that late?\nM: I am not sure. Last year it closed at ten. Maybe we should bring our own coffee.\nW: Good idea. By the way, do you know if the group study rooms can be booked online now?\nM: Yes, they changed the system last month. You can reserve a room for up to three hours.",
+      "path": "audio/original/79d683b1d9213fdf9b76.mp3",
+      "bytes": 216990,
+      "sha256": "2074d5a79379368adfd899c1f5481d00db71c8502052d8ef947b897ca0c2c611"
+    },
+    {
+      "text": "Scientists have found that sleep plays a key role in memory. During deep sleep, the brain replays the events of the day and moves important information into long-term storage. In one experiment, students who slept for eight hours after learning new words remembered twenty percent more than those who stayed awake. The researchers suggest that students should not trade sleep for study time, because a tired brain cannot learn efficiently.",
+      "path": "audio/original/8d61e34f0c9834d7cbaf.mp3",
+      "bytes": 178120,
+      "sha256": "37f014ac97c35a2e2fdea559f133c93ec63d1c27a5f25d2f05bec30f64178c2d"
+    },
+    {
+      "text": "A growing number of companies are using artificial intelligence to handle customer service. According to a recent survey, nearly sixty percent of large firms now use AI chatbots to answer common questions. Supporters say the technology saves time and allows human staff to deal with more complex problems. Critics, however, argue that chatbots often fail to understand emotional situations and can make customers feel ignored. Some companies are now testing a hybrid model, in which AI handles simple requests while human agents step in when necessary.",
+      "path": "audio/original/dd2667150762df815904.mp3",
+      "bytes": 238149,
+      "sha256": "92168cee7a48d65ad80a511de81d99bd6b8a2876a58c62374ba6de8882803234"
+    },
+    {
+      "text": "W: Good morning, Mr. Lee. Thanks for coming in. I see from your resume that you have worked remotely for two years.\nM: That is right. I actually prefer remote work because it saves two hours of commuting every day.\nW: Our company is considering a flexible model: three days in the office and two days at home. Would that work for you?\nM: I think so. Working in the office helps with teamwork, and I still get some quiet days for focused tasks.\nW: Great. One more question: how do you keep in touch with your team when working from home?",
+      "path": "audio/original/aec369091a3c9c2124ee.mp3",
+      "bytes": 251158,
+      "sha256": "4d15d929687bdb65d14f1c54a7866112e6ed8c0e38ecacbfe8e21fdd19d1aefa"
+    },
+    {
+      "text": "Coffee is one of the most popular drinks in the world, but climate change is threatening its future. Rising temperatures and unpredictable rainfall are making it harder to grow high-quality coffee beans. Scientists predict that by 2050, about half of the current coffee-growing areas may become unsuitable. Some farmers are moving their fields to higher ground, where the air is cooler. Others are experimenting with new kinds of coffee trees that can survive in warmer weather. Experts say consumers may also need to accept higher prices in the future.",
+      "path": "audio/original/cb94d1168434f1752f23.mp3",
+      "bytes": 231096,
+      "sha256": "ed3fcc897c680ba6898a83adb8b104602ba2982a7728934ca212523110e26ed1"
+    },
+    {
+      "text": "A city in southern France has banned plastic knives, forks and cups at fast-food restaurants. Officials say the ban will reduce plastic waste by three hundred tons a year. Restaurants now offer wooden forks and paper cups instead. Some customers say the new forks break easily, but most people support the change. The city will check nearby shops next month to make sure they follow the new rule.",
+      "path": "audio/original/5f75ec6d40bc443bbefb.mp3",
+      "bytes": 172164,
+      "sha256": "d9206aec7c2d27730846bac569c2cda69f4d5303a66884b578b741d893130fa9"
+    },
+    {
+      "text": "W: I am thinking about joining a gym near my home. Do you know anything about it?\nM: Yes, I have been a member for a year. It has a swimming pool and yoga classes, and it is open twenty-four hours.\nW: How much is the membership?\nM: It is three hundred yuan a year, but students get a discount. You should bring your student card.\nW: Perfect. I will visit it this weekend. Do I need to book the swimming pool in advance?\nM: Not usually, but Saturday mornings are busy, so it is better to book a day early.",
+      "path": "audio/original/7cbbc40e90dd83554131.mp3",
+      "bytes": 234701,
+      "sha256": "ed8e91405fada90b77ceb8e9b617a8712153f95f0400252ff5d684f132cf9812"
+    },
+    {
+      "text": "Volunteering is good for both the community and the volunteers themselves. Research shows that people who give two hours a week to help others feel happier and less stressed. They also develop new skills, such as communication and teamwork, which are useful in their jobs. Some companies even allow employees to volunteer during working hours. Experts advise new volunteers to choose an activity they enjoy, so that helping others does not feel like another job.",
+      "path": "audio/original/9ad3fe31a7d3d26fd444.mp3",
+      "bytes": 192853,
+      "sha256": "aae461d7cf7dd5ff0a0f5ad8d70d26abd5227c7763287f7b9f957a2085bd0c9c"
+    },
+    {
+      "text": "A coastal city in Japan has launched one of the world's largest floating solar farms. The farm consists of more than fifty thousand solar panels placed on the surface of a reservoir. Engineers say floating panels are more efficient than land-based ones because water keeps them cool. The project is expected to produce enough electricity for about five thousand homes. Local officials also note that the reservoir's surface is no longer wasted space, and the water itself is protected from too much sunlight.",
+      "path": "audio/original/2b6cf0c7685e48d007f6.mp3",
+      "bytes": 209937,
+      "sha256": "d2667f5bb98b96a9bbc9ea812619ff598a1ba76ba4bf17cea8c502dd00ca04d3"
+    },
+    {
+      "text": "W: Hello, I am calling about the conference next month. I registered online, but I have not received a confirmation email.\nM: Let me check. Could you give me your name and the email address you used?\nW: Yes, it is Anna Weber, and the email is a-weber at mail dot com.\nM: Ah, I see the problem. Your registration is here, but the confirmation was sent to a different address. I will resend it right away.\nW: Thank you. Also, is lunch included in the fee?\nM: Yes, lunch and coffee breaks are included, but parking is not.",
+      "path": "audio/original/a1265f4a35ff1c48d221.mp3",
+      "bytes": 258211,
+      "sha256": "9af7c69f4a55bceba59db398d36a3fc98f7d25f5979b9ed11e898e1cb0e305ef"
+    },
+    {
+      "text": "The two-day weekend is a surprisingly recent invention. For most of history, people worked six days a week. In the early twentieth century, labor unions began to demand shorter hours and more rest. Henry Ford, the American carmaker, was one of the first employers to give workers two days off, because he believed that rested workers were more productive and would also have time to buy his cars. The idea spread quickly, and by the 1930s, the five-day workweek had become common in many countries. Today, some companies are experimenting with an even shorter week.",
+      "path": "audio/original/5864d174987b2e7f5648.mp3",
+      "bytes": 251942,
+      "sha256": "cb90fb31111ed40cb129f89660752a328f5faf52925f3e811b7416ed05b385cf"
+    },
+    {
+      "text": "The first week of university is always busy.",
+      "path": "audio/original/0b099025cfc679d93650.mp3",
+      "bytes": 22012,
+      "sha256": "f6e5bdc9ac1db8f721ec787d4a53e742e060783183f65423f558bc98520440bf"
+    },
+    {
+      "text": "Students need to find their classrooms and buy books.",
+      "path": "audio/original/10547d66c1aae87b4632.mp3",
+      "bytes": 24990,
+      "sha256": "9653b8b7df84ed254c6601cff7a09377c2bba25d43e2842d85da433f4bb332ad"
+    },
+    {
+      "text": "Many of them are living away from home for the first time.",
+      "path": "audio/original/8a1280a55c79e8476cf5.mp3",
+      "bytes": 24520,
+      "sha256": "452212998495c13992f6d748965b75f1bb79541448f4657c9eafa26451fb4b5d"
+    },
+    {
+      "text": "The library stays open until midnight during the first month.",
+      "path": "audio/original/469562daf8ac765977e3.mp3",
+      "bytes": 27341,
+      "sha256": "07852c6a1b0e7087ac0e1f07cf3e26cb7d29cd49e2e6b2557faffe3e435c8b72"
+    },
+    {
+      "text": "New students often join clubs to make friends.",
+      "path": "audio/original/dc7ce3cac6dd299da827.mp3",
+      "bytes": 23893,
+      "sha256": "a58da57d4df5d6db3fd6d791c778a528349753fffed15a06b3f071dc394042f9"
+    },
+    {
+      "text": "Some of them feel nervous, but most become comfortable soon.",
+      "path": "audio/original/2913f1d055919734f243.mp3",
+      "bytes": 29692,
+      "sha256": "452f20f5f5d31890547730a55394b1e73ba262ae372747b51063dc090045f8c1"
+    },
+    {
+      "text": "A good plan can make the whole term much easier.",
+      "path": "audio/original/2cffe924476257724404.mp3",
+      "bytes": 22796,
+      "sha256": "3e8e6554ca200889880915f0508b4c7823d9a52197824a666fddde41f9666192"
+    },
+    {
+      "text": "The average person checks a smartphone about eighty times a day.",
+      "path": "audio/original/a110149a242de0c109ad.mp3",
+      "bytes": 27341,
+      "sha256": "2bcb0f4b1929f64913649fadd89fcda259749e403aa3e2ab738ca28d429f651f"
+    },
+    {
+      "text": "That number has grown quickly over the past ten years.",
+      "path": "audio/original/fb7f005f4d9ba19093cc.mp3",
+      "bytes": 24833,
+      "sha256": "15083a16029774270359f18800fc81553ed60e7a37f0aa9979a9108a54852d56"
+    },
+    {
+      "text": "Smartphones help us find information and stay in touch.",
+      "path": "audio/original/9a579634d45ba1e2438c.mp3",
+      "bytes": 27654,
+      "sha256": "a14337afcfcfd66ea8957f6ea2c4b0cc7768a9562df38197b940e87a4e6b7b89"
+    },
+    {
+      "text": "However, they can also take our attention away from work.",
+      "path": "audio/original/ae2159208b41660200df.mp3",
+      "bytes": 28438,
+      "sha256": "118be9f55e5401598f75a4f45a7f909257ba5152d408cf5b971780cc2d1843e3"
+    },
+    {
+      "text": "Some people turn off notifications while they study.",
+      "path": "audio/original/d5f231300d144e68fda1.mp3",
+      "bytes": 25147,
+      "sha256": "4d8b1fe364203b1727580b3826ebe79894839456cdc325c8beeba19c2777d427"
+    },
+    {
+      "text": "Others keep the phone in another room to avoid checking it.",
+      "path": "audio/original/92adcb6078952600f7ae.mp3",
+      "bytes": 24363,
+      "sha256": "6865d3a7a738fc822a51b0bb5455a8ef8f96397bdf07a3106807b53d1cffba98"
+    },
+    {
+      "text": "A simple rule is to finish one task before picking it up again.",
+      "path": "audio/original/d247f40714d0af375c8e.mp3",
+      "bytes": 28281,
+      "sha256": "1a495fb34412379ec21451705098d22008494e09b8605dd2f6bcb828f57003ce"
+    },
+    {
+      "text": "Millions of tons of plastic end up in the ocean every year.",
+      "path": "audio/original/d89ccc3c3cb2c65b651f.mp3",
+      "bytes": 27184,
+      "sha256": "dcd75f35a938c75af2df0ff9b871cb1bf84f77cae448cac5297985a27ac2a82f"
+    },
+    {
+      "text": "Some of it floats on the surface, and some sinks to the bottom.",
+      "path": "audio/original/74bb5fcb1d338afa96c6.mp3",
+      "bytes": 28595,
+      "sha256": "61cf1cc0ef4c7778877009f87200ec968a34d745ea2fa3fcb15101ed62abce9d"
+    },
+    {
+      "text": "Small pieces are often eaten by fish and birds.",
+      "path": "audio/original/cc9cc046ace3e12cbd62.mp3",
+      "bytes": 23579,
+      "sha256": "7906589ced7f9c05a9df6a8e497d335a9f05e021fba41abe9501bf68d02f0450"
+    },
+    {
+      "text": "Scientists are trying to measure how serious the problem is.",
+      "path": "audio/original/4a616b5ce5aaf280b25d.mp3",
+      "bytes": 28281,
+      "sha256": "f2f784d18a1a4ad5d1cee2711e4fd62fdb919daa34bc5c2d5141376c82484bcc"
+    },
+    {
+      "text": "Several countries have banned single-use plastic bags.",
+      "path": "audio/original/5571ef87615ca75a598f.mp3",
+      "bytes": 25930,
+      "sha256": "9d55a00815ee996d97578ece4d24ab5771bef1c617850f2da51f7a888a0747dc"
+    },
+    {
+      "text": "Recycling is important, but using less plastic matters more.",
+      "path": "audio/original/08665fe33f2924075688.mp3",
+      "bytes": 30946,
+      "sha256": "c91806a4e64cf88b1cfb764b175ea396c8c6c9debf014361399679c10ec90576"
+    },
+    {
+      "text": "Every small choice can reduce the waste we produce.",
+      "path": "audio/original/b41af9a8b440c9612878.mp3",
+      "bytes": 24520,
+      "sha256": "fd5d05e25adc702cf88b6daa05856e6f4c7462d2764ad3084cb6f0a580cbbf97"
+    },
+    {
+      "text": "Sleep plays an important role in learning and memory.",
+      "path": "audio/original/5ac97c049e28651a6160.mp3",
+      "bytes": 24049,
+      "sha256": "0c73127d700afab8bdb619bf32324a2d41130934b91392393ebe5c24fa14b0c5"
+    },
+    {
+      "text": "During deep sleep, the brain organizes what we learned during the day.",
+      "path": "audio/original/5154161a7a53ebf0e754.mp3",
+      "bytes": 30946,
+      "sha256": "a306656ccdb4f7ae4d161c1593795f3b0fc6f45b26402b04f251ec216478c808"
+    },
+    {
+      "text": "Students who sleep well often remember more in exams.",
+      "path": "audio/original/cce5f5b9fce15021f15b.mp3",
+      "bytes": 26087,
+      "sha256": "16671023d189cf1e0e1c58230de70eb0ed86ac45c50ea37f383a656e5df20df3"
+    },
+    {
+      "text": "Staying up late before a test usually does more harm than good.",
+      "path": "audio/original/a24e4686409ea2e6e89f.mp3",
+      "bytes": 27654,
+      "sha256": "814b34bd8d107b819c0179929cc940c77bd47eb36cb037e1c43225c6917aaafb"
+    },
+    {
+      "text": "Experts suggest keeping the same bedtime every night.",
+      "path": "audio/original/e5bf297b77d01b450d77.mp3",
+      "bytes": 25147,
+      "sha256": "c93938728cfe3373f0e8b58f9e6475f8e15a9e414e4544649a7f1ef466a3a117"
+    },
+    {
+      "text": "They also advise avoiding bright screens for an hour before sleep.",
+      "path": "audio/original/adef5cfb7be9e7d1bc2e.mp3",
+      "bytes": 28595,
+      "sha256": "f679951eb6f5b423a298ffab1d658930527176e5246eac4a77243e917cd11890"
+    },
+    {
+      "text": "A short walk in the evening can help the body relax.",
+      "path": "audio/original/39912c0530465f96bf37.mp3",
+      "bytes": 24520,
+      "sha256": "7cdf49aacad51ec9478bc883e605b4ff48b67d1cdfd5ce378c4054b9fe69c9ca"
+    },
+    {
+      "text": "The Spring Festival is the most important holiday in China.",
+      "path": "audio/original/42fe19d3107ca1c2e746.mp3",
+      "bytes": 27027,
+      "sha256": "cfe1fcdf68aed64db326137c3cfe0d86f237ddbae5db364ff0549e9a903904a9"
+    },
+    {
+      "text": "Families travel long distances to be together.",
+      "path": "audio/original/beb978cd5cf813db7698.mp3",
+      "bytes": 23266,
+      "sha256": "4809703ca8c33a276ceca78a7791afd0795fe8c98ee4b43f25db8fa662e09f39"
+    },
+    {
+      "text": "People clean their homes and put up red decorations.",
+      "path": "audio/original/1890b3f5b1e91edad3e8.mp3",
+      "bytes": 24206,
+      "sha256": "5c789808eeca20439fd100ef7085bdb7d4c267194e673c2c2d7942dec7e29845"
+    },
+    {
+      "text": "On the evening before the new year, families share a big dinner.",
+      "path": "audio/original/0d6a6626a66faf78079b.mp3",
+      "bytes": 28751,
+      "sha256": "1cc11913ad28474436623824d4142aaa8e6b7dba3540a92f4389400b6fd04e31"
+    },
+    {
+      "text": "Children receive red envelopes with money inside.",
+      "path": "audio/original/e473692f8faa63ac16f7.mp3",
+      "bytes": 23736,
+      "sha256": "f504a4ebbe10b736456b04914e3d823a5dad6f3175263d690e19136ee465d725"
+    },
+    {
+      "text": "Fireworks are less common in big cities now.",
+      "path": "audio/original/6e6cc8cbedf09b64a1f0.mp3",
+      "bytes": 22169,
+      "sha256": "7ba9a27059c9326906b2dd0dad3767c743c106d440fdf1113ed190797e09f5d0"
+    },
+    {
+      "text": "The holiday usually lasts about a week.",
+      "path": "audio/original/5da6e34d429d7eeda56b.mp3",
+      "bytes": 20915,
+      "sha256": "caa71dd126fe16f19a704f2458eb8c030e375142d641b37f40965ef50e9e063a"
+    },
+    {
+      "text": "Last summer, my friends and I climbed a mountain in the north.",
+      "path": "audio/original/4e7e7ac3181397db3081.mp3",
+      "bytes": 28595,
+      "sha256": "6b7e4cc2305f38deb1474171ba2ba5cdf83ef769d0d9c11a5d097e4966740527"
+    },
+    {
+      "text": "We started early in the morning before the sun was high.",
+      "path": "audio/original/53fff104178b2a2614ad.mp3",
+      "bytes": 23266,
+      "sha256": "3631504e8bb784a2feafb7d1ced96e9f5688eaed493341bda7158cd80151723c"
+    },
+    {
+      "text": "The path was narrow, and the stones were wet from the rain.",
+      "path": "audio/original/ebf3a887830c13e1c9ec.mp3",
+      "bytes": 27341,
+      "sha256": "d7b2bb69257abc54dce8ef0c82b0c45c03b9da8f9611b1f2507580f9bae2f966"
+    },
+    {
+      "text": "After two hours, we reached a small lake near the top.",
+      "path": "audio/original/9863eea1824245e7e6d4.mp3",
+      "bytes": 27811,
+      "sha256": "744688f992408ad52da34177b8c1324ffa161e3ff1cc7c248ea5cd0624dff146"
+    },
+    {
+      "text": "The water was clear enough to see the bottom.",
+      "path": "audio/original/ec21a5518dc1fbe39a24.mp3",
+      "bytes": 19818,
+      "sha256": "590b21e3333086b8d52d82cfa0ccbacb7d77bcb81ca9a4a58ac0ae3c4b1f9778"
+    },
+    {
+      "text": "We rested there and ate the food we had brought.",
+      "path": "audio/original/3b8c3090e9361afc8209.mp3",
+      "bytes": 20601,
+      "sha256": "eceb46a7c1a28a40e0d87f59ea4b99f3db20b1ff0751fc0c7378b56dee570b8a"
+    },
+    {
+      "text": "It was a tiring day, but the view made it worth it.",
+      "path": "audio/original/d521da67dadcb8b5e256.mp3",
+      "bytes": 24363,
+      "sha256": "caa2902431097ddc19c3ad38070c15f96fffcc50102fd069e2c2256a98469032"
+    },
+    {
+      "text": "More people work from home today than ever before.",
+      "path": "audio/original/a8f334874af835be9c33.mp3",
+      "bytes": 23109,
+      "sha256": "3b9b5f887e189d386a2fbe850b83ac0614a7a48ba228e8f12682b36cce977bd3"
+    },
+    {
+      "text": "Remote work saves time that used to be spent on the road.",
+      "path": "audio/original/3c5d404519d2fe095703.mp3",
+      "bytes": 25460,
+      "sha256": "ee30e3d006683ae0cce6bfc63102df48dcbd3afea8ad1c48945c118607cd4036"
+    },
+    {
+      "text": "It also gives workers more control over their schedule.",
+      "path": "audio/original/d75837ffec6d90c44933.mp3",
+      "bytes": 24833,
+      "sha256": "19d731939f927c89a7b913354bde35c8dbc520e704f8f6a605161a3cb4719dab"
+    },
+    {
+      "text": "However, working alone can make people feel isolated.",
+      "path": "audio/original/e2951ab108ff488cb2b5.mp3",
+      "bytes": 28281,
+      "sha256": "37276d69656d77f8574b8828f4e95ed2990a96f09bed7999354180e7bfbafe3d"
+    },
+    {
+      "text": "Some teams meet online every morning to stay connected.",
+      "path": "audio/original/3f7eb3f3557c82f9164a.mp3",
+      "bytes": 24833,
+      "sha256": "f0c1fe40e31208565ba1b2a148a721387fcd84d018c6215bc48f73fde0e52669"
+    },
+    {
+      "text": "Others set aside one day a week for office meetings.",
+      "path": "audio/original/3fb115c2deaff7fddd1d.mp3",
+      "bytes": 23893,
+      "sha256": "a31a865cf961df153ef1f4ff80617344270ad7c720efcf1b1fb69cb0cbd47ebc"
+    },
+    {
+      "text": "The best arrangement often depends on the kind of work.",
+      "path": "audio/original/5537bbda7a2298d9e581.mp3",
+      "bytes": 24363,
+      "sha256": "69581f905e40723a167c71b683e71ae7cb6c0401ac4544fc9a95a786061528ed"
+    },
+    {
+      "text": "Learning a language takes time, and progress is not always steady.",
+      "path": "audio/original/82db6eb67d8f544f6206.mp3",
+      "bytes": 31102,
+      "sha256": "f5ab3d52b55082f86f7135d419a7cb0f2002d91121381e3f33c034ede9a4b21f"
+    },
+    {
+      "text": "Many learners spend too much time reading and too little time listening.",
+      "path": "audio/original/0434a11b4a4711a3e517.mp3",
+      "bytes": 29849,
+      "sha256": "ae20ef24d69acb7e69fb965d8ae1c4613f206db1488ded32caf1448ad87cbbfe"
+    },
+    {
+      "text": "Listening helps you notice how words are actually pronounced.",
+      "path": "audio/original/a15dce89021bff8b831b.mp3",
+      "bytes": 26244,
+      "sha256": "a0e37bc87330ee15a3235058bf32d18824c98cd992da8c4412e3b869daff8e85"
+    },
+    {
+      "text": "It is better to practice a little every day than a lot once a week.",
+      "path": "audio/original/623511c0f2d5460bdd47.mp3",
+      "bytes": 27027,
+      "sha256": "304d7dfa69008a1d2f3d4ccfc6aa67826cc33e1717977cf014ed04fbb2c118a5"
+    },
+    {
+      "text": "Keep a record of the words you often forget.",
+      "path": "audio/original/f8210f1132e11bb29742.mp3",
+      "bytes": 20288,
+      "sha256": "224b0319223ff3d078167dd6254254079914b87dba995a6819238a77b87f0375"
+    },
+    {
+      "text": "Review them at increasing intervals until they stay in memory.",
+      "path": "audio/original/dabefd6ec59303b4ba1b.mp3",
+      "bytes": 25774,
+      "sha256": "9750377d066bd3891d8c929c9e3ecbc32ee5555ee3cd343885d42e5ae64a4613"
+    },
+    {
+      "text": "Speaking with other people is the fastest way to improve.",
+      "path": "audio/original/24737d7d6b5a2e3e8e4e.mp3",
+      "bytes": 25147,
+      "sha256": "de38abb63507a6381ccaa428077c86020ef40afd83023dd92edcaaf0b1d5f740"
+    },
+    {
+      "text": "Water moves through the environment in a continuous cycle.",
+      "path": "audio/original/c3b7e61310887e1ad410.mp3",
+      "bytes": 24990,
+      "sha256": "9e986afd55d5e14688aaf5ec8960f56e543ae49b1c48e8edcf4144968883e336"
+    },
+    {
+      "text": "Heat from the sun turns water on the surface into vapor.",
+      "path": "audio/original/aef4e9ce50c0c7614178.mp3",
+      "bytes": 24990,
+      "sha256": "afeec8ce09c5fda2e2d073b13cd2a826d44878c224a4c9bb89acb46a68cff7ea"
+    },
+    {
+      "text": "The vapor rises and cools, forming tiny drops in the air.",
+      "path": "audio/original/fcb03b96fb73ef2d8eb5.mp3",
+      "bytes": 29849,
+      "sha256": "5db793e8c129bb3229f9cc527b88f164100119650aa821dda430ff9cf4f3ce20"
+    },
+    {
+      "text": "These drops gather into clouds and move with the wind.",
+      "path": "audio/original/1a73186bb3b5f497287c.mp3",
+      "bytes": 23422,
+      "sha256": "986cb77363dc78c0a267647471e84c14f0a6f2b052bd5c00c37b3bacc022db43"
+    },
+    {
+      "text": "When the drops become heavy enough, they fall as rain or snow.",
+      "path": "audio/original/e9bc10c89e998c2aab6d.mp3",
+      "bytes": 29065,
+      "sha256": "03416ee54fc08eabf70bb88a0786b716a227a581bedb7cd211aef2fa6d4755ac"
+    },
+    {
+      "text": "Some of the water flows into rivers and returns to the sea.",
+      "path": "audio/original/4c56d3f7e21c609ef700.mp3",
+      "bytes": 25460,
+      "sha256": "abab40c3d5f1ee8d667740251d34bc473809ab8b951a66c4d5992341811717df"
+    },
+    {
+      "text": "The rest goes into the ground and is stored for years.",
+      "path": "audio/original/66bfb71a23d61a32d90b.mp3",
+      "bytes": 23109,
+      "sha256": "62b4536a3cb0d00062054b8bc1f5a9e7e6d5c645ec49019eb55f113cd221fb41"
+    },
+    {
+      "text": "Every Saturday, a group of students volunteers at the community center.",
+      "path": "audio/original/cc130f2759695e7cc5a9.mp3",
+      "bytes": 32983,
+      "sha256": "b5a3530b7985ce2a35c09883874050b42a5c356c2f4c424fb16ac7b518703083"
+    },
+    {
+      "text": "They help older people carry heavy bags and clean their rooms.",
+      "path": "audio/original/febac5633ced1d1339cb.mp3",
+      "bytes": 27184,
+      "sha256": "85ff8f01da1e4425f5641cb2629bbdab1455b817f4ddc50e0ce406047a789c8d"
+    },
+    {
+      "text": "Some of them teach children how to use a computer.",
+      "path": "audio/original/d2f46a951569fa40173a.mp3",
+      "bytes": 22639,
+      "sha256": "c66cba015c463e45912814e080527e0de96c4853e21cb1c1e371a5788e7932bf"
+    },
+    {
+      "text": "The center also provides free meals on cold days.",
+      "path": "audio/original/c930fee7721c8ef3b0a4.mp3",
+      "bytes": 24833,
+      "sha256": "d8a859290abff84d4c30714c2d40aa049f14e481d21e83b99d37a17848640788"
+    },
+    {
+      "text": "Volunteers say they learn more than they give.",
+      "path": "audio/original/d492a60bc54261aeec0c.mp3",
+      "bytes": 20445,
+      "sha256": "afda74e606cd3eb6b80c30502115160fab6df9f629039d17eb899b879ffba059"
+    },
+    {
+      "text": "One student said the experience changed how she saw her city.",
+      "path": "audio/original/eba2b4462f5fdb7bb05e.mp3",
+      "bytes": 27654,
+      "sha256": "7c8e6b3df50be29ab9e402df4ba81605a3222ab23b7f9660f03d1bb2ad9ec6a9"
+    },
+    {
+      "text": "New members are always welcome.",
+      "path": "audio/original/0b25b90b553567aa2b2b.mp3",
+      "bytes": 16683,
+      "sha256": "46644cc122b47d8baed28c7db939f3f02268e040875d03c1509562411043235e"
+    }
+  ]
+}

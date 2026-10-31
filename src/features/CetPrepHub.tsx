@@ -74,10 +74,11 @@ export function CetPrepHub() {
     </div>
     {level !== target && <p className="readable mb-3 text-px12 text-dim">正在浏览{levelName(level)}练习。你的备考目标仍为{levelName(target)}，可在设置中修改。</p>}
     <div className="cet-paper-modes" role="group" aria-label="选择备考资料">
-      <PixelButton variant={mode === 'papers' ? 'primary' : 'default'} aria-pressed={mode === 'papers'} onClick={() => setMode('papers')}>近年真题</PixelButton>
+      <PixelButton variant={mode === 'papers' ? 'primary' : 'default'} aria-pressed={mode === 'papers'} onClick={() => setMode('papers')}>阅读与写译真题</PixelButton>
       <PixelButton variant={mode === 'original' ? 'primary' : 'default'} aria-pressed={mode === 'original'} onClick={() => setMode('original')}>原创专项</PixelButton>
+      <PixelButton variant="ghost" icon="headphones" onClick={() => setTab('listening')}>听力真题</PixelButton>
     </div>
-    {mode === 'papers' ? <CetPaperLibrary level={level} /> : <>
+    {mode === 'papers' ? <CetPaperLibrary level={level} scope="reading" /> : <>
     <div className="cet-skills" role="group" aria-label="选择四六级专项">
       {KINDS.map((item) => <button key={item.id} type="button" aria-pressed={kind === item.id} className={`cet-skill ${kind === item.id ? 'cet-selected' : ''}`} onClick={() => setKind(item.id)}>
         <span>{item.name}<span className="ml-2 text-dim">{item.weight}</span></span>
@@ -87,8 +88,8 @@ export function CetPrepHub() {
     {kind === 'listening' ? <div className="cet-listening readable">
       <h3 className="text-bright">{levelName(level)}听力怎么练</h3>
       <p className="text-dim">{level === 'cet4' ? '考试包括短篇新闻、长对话和听力篇章。' : '考试包括长对话、听力篇章和讲话、报道、讲座。'}先听关键信息，再回听证据，最后脱离原文重听。</p>
-      <p className="text-dim">应用提供原创短练与系统合成语音。考前请搭配有使用权的完整真题录音，练一次完整的答题节奏。</p>
-      <PixelButton icon="headphones" onClick={() => setTab('listening')}>进入听力短练</PixelButton>
+      <p className="text-dim">听力页提供近年真题原卷录音、25 道题及参考答案，也可以展开原创录音做短练。</p>
+      <PixelButton icon="headphones" onClick={() => setTab('listening')}>进入听力页</PixelButton>
       {level !== target && <p className="text-px12 text-dim">听力页默认跟随已设置的{levelName(target)}目标，可在页内切换级别。</p>}
     </div> : <>
       <div className="cet-practice-list" aria-label={`${levelName(level)}${KINDS.find((item) => item.id === kind)?.name}练习`}>
@@ -110,8 +111,8 @@ export function CetPrepHub() {
     <details className="adventure-reference cet-scope readable">
       <summary>考试结构与本应用练习范围</summary>
       <p>笔试中听力、阅读各占 35%，写作、翻译各占 15%。四级总时长 125 分钟，六级 130 分钟；各分项时间见上方。</p>
-      <p>阅读还包括选词填空（5%）、长篇匹配（10%）、仔细阅读（20%）。近年真题通过高校原站或本机文件练习，答题卡支持 55 道客观题；原创专项只提供仔细阅读短练。</p>
-      <p>真题保存本人答案、参考答案、首次与最新核对、写译草稿及复盘；参考答案由你核对原卷后录入。原创写译保留自查流程。记录不换算考试分数、CEFR 等级或过级概率，情景冒险可用于日常运用加练。</p>
+      <p>阅读还包括选词填空（5%）、长篇匹配（10%）、仔细阅读（20%）。本站内置近年高校整理真题，首页练阅读与写译，听力页练录音和 25 题。原创专项另作加练。</p>
+      <p>真题内置参考答案，共享一份作答草稿，听力与阅读分别保留首次和最近核对；写译草稿和笔记自动保存。原创写译保留自查流程。记录不换算考试分数、CEFR 等级或过级概率。</p>
       <a className="text-gold underline" href="https://cet.neea.edu.cn/html1/report/16123/177-1.htm" target="_blank" rel="noreferrer">查看教育部教育考试院笔试说明</a>
       <p className="text-px12 text-dim">考试结构核对日期：2026-10-30。</p>
     </details>

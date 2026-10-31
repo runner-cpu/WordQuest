@@ -4,18 +4,21 @@ import { awardRewards } from '../core/profile'
 import { Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
 import { useUi } from '../state/ui'
-import { hasEnglishVoice, onVoicesChanged, speak } from '../core/audio'
+import { isMuted, setMuted, speak, speechErrorMessage, stopSpeaking } from '../core/audio'
+import { originalAudioPath } from '../core/originalAudio'
 import { checkAchievements } from '../core/progress'
 import { BUILTIN_MATERIALS } from '../data/listening'
 import { builtinSetsForLevel, mergeSetPack } from '../data/examSets'
 import { buildListenQuestion, checkOrder, maskTarget } from '../core/listening'
 import { ExamPlayer } from './ExamPlayer'
+import { CetPaperLibrary } from './CetPaperLibrary'
 import type { ExamPack } from '../core/examImport'
+import './listening.css'
 
 /**
  * 听力模块。
  *
- * 按主题组织的原创短练，以及短文句子练习。
+ * 近年真题听力优先，原创短练和句子练习按需展开。
  * 目标级别用于内容分组，不表示试题已完成官方难度校准。
  */
 interface Sentence {
@@ -35,148 +38,36 @@ interface Material {
 }
 
 export function ListeningPage() {
-  const profile = useUi((s) => s.profile)
-  const openCetPrep = useUi((s) => s.openCetPrep)
-  const pushToast = useUi((s) => s.pushToast)
-  const [level, setLevel] = useState<'CET-4' | 'CET-6'>(() => profile?.examType === 'cet6' ? 'CET-6' : 'CET-4')
+  const profile = useUi((state) => state.profile)
+  const pushToast = useUi((state) => state.pushToast)
+  const [level, setLevel] = useState<'cet4' | 'cet6'>(() => profile?.examType === 'cet6' ? 'cet6' : 'cet4')
   const [active, setActive] = useState<Material | null>(null)
   const [activeExam, setActiveExam] = useState<ExamPack | null>(null)
-  const [voiceReady, setVoiceReady] = useState(() => hasEnglishVoice())
+  const [practiceKind, setPracticeKind] = useState<'short' | 'sentence'>('short')
+  useEffect(() => setLevel(profile?.examType === 'cet6' ? 'cet6' : 'cet4'), [profile?.examType])
+  const practiceSets = builtinSetsForLevel(level === 'cet4' ? 'CET-4' : 'CET-6')
+  const announce = (name: string) => pushToast(`成就解锁：${name}`, 'levelup')
 
-  useEffect(() => onVoicesChanged(() => setVoiceReady(hasEnglishVoice())), [])
-  useEffect(() => setLevel(profile?.examType === 'cet6' ? 'CET-6' : 'CET-4'), [profile?.examType])
-  const practiceSets = builtinSetsForLevel(level)
+  if (activeExam) return <ExamPlayer pack={activeExam} onExit={() => setActiveExam(null)} onAchievement={announce} />
+  if (active) return <Player material={active} onExit={() => setActive(null)} onAchievement={announce} />
 
-  if (activeExam) {
-    return (
-      <ExamPlayer
-        pack={activeExam}
-        onExit={() => setActiveExam(null)}
-        onAchievement={(name) => pushToast(`成就解锁：${name}`, 'levelup')}
-      />
-    )
-  }
-
-  if (active) {
-    return (
-      <Player
-        material={active}
-        onExit={() => setActive(null)}
-        onAchievement={(name) => pushToast(`成就解锁：${name}`, 'levelup')}
-      />
-    )
-  }
-
-  return (
-    <div className="space-y-3 p-3 pb-24 md:p-5 md:pb-8">
-      <Panel>
-        <SectionHead>用真题录音练完整节奏</SectionHead>
-        <p className="readable mb-3 text-[16px] text-dim">近年真题提供高校公开原卷、答案与录音入口。可导入本机录音，配合 25 道听力答题卡练习，再回听错题证据。</p>
-        <PixelButton variant="primary" icon="headphones" onClick={openCetPrep}>去近年真题练听力</PixelButton>
-      </Panel>
-      {!voiceReady && (
-        <Panel className="!border-fail">
-          <div className="flex items-start gap-2">
-            <span className="mt-[2px] text-fail">
-              <Icon name="warning" size={16} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-px12 text-fail">系统未检测到英语语音，原创短练暂不能朗读</div>
-              <p className="readable mt-1 text-px12 text-dim">
-                内置短练与短文靠系统英语语音朗读，导入的真题录音可直接播放。
-                Windows 在「设置 → 时间和语言 → 语音」添加英语；macOS 在「系统设置 → 辅助功能 → 朗读内容」下载英语语音。
-                装好后刷新页面即可。
-              </p>
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      {/* 目标级别下的原创短练 */}
-      <Panel>
-        <SectionHead right={`${practiceSets.length} 组`}>原创听力短练</SectionHead>
-        <p className="readable mb-2 text-px12 text-dim">
-          默认显示备考目标对应的短练，可切换级别。每组 7–8 题、3 段材料，合成语音朗读，可连续练习或单独练一段。
-        </p>
-        <div className="mb-3 flex gap-2" aria-label="听力短练级别">
-          {(['CET-4', 'CET-6'] as const).map((value) => (
-            <PixelButton key={value} size="sm" variant={level === value ? 'primary' : 'ghost'} aria-pressed={level === value} onClick={() => setLevel(value)}>
-              {value === 'CET-4' ? '四级方向' : '六级方向'}
-            </PixelButton>
-          ))}
-        </div>
-        <div className="space-y-2">
-          {practiceSets.map((set) => (
-            <div key={set.id} className="border-2 border-edge p-2">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-px12 text-bright">{set.label}</div>
-                  <div className="text-px12 text-dim tnum">
-                    {set.level} 方向 · {set.sections.reduce((a, s) => a + s.pack.items.length, 0)} 题 · {set.sections.length} 段材料
-                  </div>
-                </div>
-                <span className="shrink-0 border border-gold px-1 text-px12 leading-4 text-gold">原创</span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                <PixelButton size="sm" variant="primary" onClick={() => setActiveExam(mergeSetPack(set))}>
-                  连续短练
-                </PixelButton>
-                {set.sections.map((s) => (
-                  <PixelButton
-                    key={s.key}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setActiveExam(s.pack)}
-                  >
-                    {s.name} · {s.pack.items.length}题
-                  </PixelButton>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="readable mt-2 text-px12 text-dim">
-          原创材料用于听辨与理解练习，未按官方整卷题量、播放流程或分值校准。备考时请另行安排对应级别的真题训练。
-        </p>
-      </Panel>
-
-
-      <Panel>
-        <SectionHead right={`${BUILTIN_MATERIALS.length} 篇`}>句子练习</SectionHead>
-        <p className="readable mb-2 text-px12 text-dim">
-          原创短文，合成语音朗读，离线可用。选词填空、听音选义、词序排列轮换出现。
-        </p>
-        <div className="grid gap-1 md:grid-cols-2">
-          {BUILTIN_MATERIALS.map((m) => (
-            <button
-              key={m.id}
-              className="flex w-full items-center gap-2 border-2 border-edge bg-panel-2 px-2 py-2 text-left"
-              onClick={() =>
-                setActive({
-                  id: m.id,
-                  title: m.title,
-                  createdAt: Date.now(),
-                  source: 'builtin',
-                  sentences: m.sentences.map((s) => ({ start: 0, end: 0, text: s.text, zh: s.zh })),
-                })
-              }
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-px12 text-bright">
-                  {m.title}
-                  <span className="text-dim">{m.level}</span>
-                </div>
-                <div className="text-px12 text-dim">
-                  {m.topic} · {m.sentences.length} 句
-                </div>
-              </div>
-              <Icon name="arrow-right" size={16} />
-            </button>
-          ))}
-        </div>
-      </Panel>
-    </div>
-  )
+  return <div className="listening-page p-3 pb-24 md:p-5 md:pb-8">
+    <Panel className="listening-library">
+      <div className="listening-heading"><h2 className="text-px24 text-bright">近年真题听力</h2><div className="listening-levels" role="group" aria-label="真题听力级别">{(['cet4', 'cet6'] as const).map((value) => <PixelButton key={value} variant={level === value ? 'primary' : 'default'} aria-pressed={level === value} onClick={() => setLevel(value)}>{value === 'cet4' ? '四级' : '六级'}</PixelButton>)}</div></div>
+      <CetPaperLibrary level={level} scope="listening" />
+    </Panel>
+    <details className="listening-extra">
+      <summary><span className="text-bright">原创加练</span><span className="readable text-dim">理解短练与句子练习</span></summary>
+      <div className="listening-extra-body">
+        <p className="readable text-dim">内置英语合成录音，可重听、调速。用于听辨和理解加练。</p>
+        <div className="listening-kinds" role="group" aria-label="原创练习类型">{([{ id: 'short', name: '理解短练' }, { id: 'sentence', name: '句子练习' }] as const).map((kind) => <PixelButton key={kind.id} variant={practiceKind === kind.id ? 'primary' : 'ghost'} aria-pressed={practiceKind === kind.id} onClick={() => setPracticeKind(kind.id)}>{kind.name}</PixelButton>)}</div>
+        <ul className="listening-original-list">
+          {practiceKind === 'short' ? practiceSets.map((set) => <li key={set.id}><div className="min-w-0"><h3 className="text-px12 text-bright">{set.label}</h3><p className="readable text-dim">{set.sections.reduce((sum, section) => sum + section.pack.items.length, 0)} 题 · {set.sections.length} 段材料</p></div><PixelButton onClick={() => setActiveExam(mergeSetPack(set))} aria-label={`练习${set.label}`}>开始短练</PixelButton></li>) : BUILTIN_MATERIALS.map((material) => <li key={material.id}><div className="min-w-0"><h3 className="text-px12 text-bright">{material.title}</h3><p className="readable text-dim">{material.topic} · {material.sentences.length} 句</p></div><PixelButton aria-label={`练习${material.title}`} onClick={() => setActive({ id: material.id, title: material.title, createdAt: Date.now(), source: 'builtin', sentences: material.sentences.map((sentence) => ({ start: 0, end: 0, text: sentence.text, zh: sentence.zh })) })}>练句子</PixelButton></li>)}
+        </ul>
+      </div>
+    </details>
+    <p className="readable listening-footnote text-dim">阅读、写作和翻译真题在「今日」的四六级备考台。</p>
+  </div>
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -211,27 +102,35 @@ function Player({
   const [results, setResults] = useState({ ok: 0, total: 0 })
   const [allowDictation, setAllowDictation] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const [voiceReady, setVoiceReady] = useState(() => hasEnglishVoice())
+  const [starting, setStarting] = useState(false)
   const [speakError, setSpeakError] = useState<string | null>(null)
   const startedRef = useRef(Date.now())
+  const playback = useRef(0)
 
   const [picked, setPicked] = useState<string | null>(null)
   const [orderPicked, setOrderPicked] = useState<number[]>([])
   const [typed, setTyped] = useState('')
 
-  useEffect(() => onVoicesChanged(() => setVoiceReady(hasEnglishVoice())), [])
-
   useEffect(() => {
+    let disposed = false
+    let objectUrl: string | undefined
     void (async () => {
       const row = await db.media.get(material.id)
       const blob = row?.blob ?? material.audioBlob
-      if (blob) setUrl(URL.createObjectURL(blob))
-    })()
+      if (blob && !disposed) { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl) }
+    })().catch(() => { if (!disposed) setSpeakError('本机录音读取未完成，请返回后重试。') })
     return () => {
-      if (url) URL.revokeObjectURL(url)
+      disposed = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [material.id])
+  }, [material.id, material.audioBlob])
+
+  useEffect(() => {
+    const player = audioRef.current
+    playback.current++
+    setPlaying(false); setStarting(false)
+    return () => { playback.current++; stopSpeaking(); player?.pause() }
+  }, [idx, material.id])
 
   const sentence = material.sentences[idx]
 
@@ -269,34 +168,36 @@ function Player({
 
   async function play() {
     if (!sentence) return
+    if (playing || starting) { playback.current++; stopSpeaking(); audioRef.current?.pause(); setPlaying(false); setStarting(false); return }
+    const attempt = ++playback.current
     setSpeakError(null)
+    setStarting(true)
     if (url && audioRef.current) {
       const el = audioRef.current
       el.currentTime = sentence.start
       el.playbackRate = rate
-      setPlaying(true)
       try {
         await el.play()
+        if (attempt === playback.current) setPlaying(true)
       } catch {
-        setSpeakError('音频播放被浏览器拦截，请再点一次播放')
-        setPlaying(false)
+        if (attempt === playback.current) { setSpeakError('音频播放未能开始，请再点一次播放。'); setPlaying(false) }
+      } finally {
+        if (attempt === playback.current) setStarting(false)
       }
       return
     }
-    setPlaying(true)
     const res = await speak(sentence.text, {
       rate,
-      onEnd: () => setPlaying(false),
+      src: originalAudioPath(sentence.text),
+      onStart: () => { if (attempt === playback.current) setPlaying(true) },
+      onEnd: () => { if (attempt === playback.current) setPlaying(false) },
+      onError: (reason) => { if (attempt === playback.current) { setPlaying(false); setSpeakError(speechErrorMessage(reason)) } },
     })
-    if (!res.ok) {
+    if (attempt !== playback.current) return
+    setStarting(false)
+    if (!res.ok && res.reason !== 'cancelled') {
       setPlaying(false)
-      if (res.reason === 'no-voice') {
-        setSpeakError('系统没有英语语音包，无法朗读')
-      } else if (res.reason === 'muted') {
-        setSpeakError('当前是静音状态，请在设置里开启音效与发音')
-      } else {
-        setSpeakError('这台浏览器不支持语音合成')
-      }
+      setSpeakError(speechErrorMessage(res.reason))
     }
   }
 
@@ -362,7 +263,7 @@ function Player({
           <Panel>
             <div className="flex flex-wrap items-center gap-2">
               <PixelButton variant="primary" icon="speaker" onClick={() => void play()}>
-                {playing ? '再听一遍' : '播放句子'}
+                {starting ? '取消载入' : playing ? '停止播放' : '播放句子'}
               </PixelButton>
               <div className="flex gap-1">
                 {[0.7, 0.85, 1, 1.2].map((r) => (
@@ -378,15 +279,13 @@ function Player({
               </div>
             </div>
             {url ? (
-              <audio ref={audioRef} src={url} preload="auto" className="hidden" />
+              <audio ref={audioRef} src={url} preload="metadata" className="hidden" onEnded={() => setPlaying(false)} onTimeUpdate={() => { const player = audioRef.current; if (player && sentence.end > sentence.start && player.currentTime >= sentence.end) { player.pause(); setPlaying(false) } }} onError={() => { setPlaying(false); setSpeakError('本机录音未能播放，请重新导入后重试。') }} />
             ) : (
               <p className="readable mt-2 text-px12 text-dim">
-                {voiceReady
-                  ? '内置材料用系统语音朗读，点播放即可听到。'
-                  : '系统没有英语语音包，暂时无法朗读内置材料。'}
+                内置英语合成录音 · 可调速重听
               </p>
             )}
-            {speakError && <p className="mt-2 text-px12 text-fail">{speakError}</p>}
+            {speakError && <div className="readable mt-2" role="alert"><p className="text-fail">{speakError}</p>{isMuted() && <PixelButton size="sm" onClick={() => { setMuted(false); void play() }}>开启声音并播放</PixelButton>}</div>}
           </Panel>
 
           <Panel>

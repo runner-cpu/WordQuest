@@ -5,8 +5,11 @@ import { db, SCHEMA_VERSION } from '../src/db/database.ts'
 import {
   attachCetPaperFile,
   cetPaperResult,
+  cetPaperQuestionNumbers,
+  cetPaperSubmissions,
   createCetPaperStudy,
   isCetPaperStudy,
+  mergeCetPaperStudies,
   parseCetAnswerKey,
   saveCetPaperStudy,
   submitCetPaperStudy,
@@ -17,6 +20,55 @@ const sourceId = CET_PAPER_SOURCES[0].id
 const emptyAnswers = () => Array<string>(55).fill('')
 const pdf = (name = 'paper.pdf') => new File(['%PDF-1.7\nexample'], name, { type: 'application/pdf' })
 const audio = (name = 'listening.mp3') => new File([new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0])], name, { type: 'audio/mpeg' })
+
+test('listening and reading submit independently without replacing either first attempt or shared drafts', async (t) => {
+  paperFixture(t)
+  const study = await createCetPaperStudy(sourceId, '', Array(55).fill('A'))
+  const answers = emptyAnswers(); answers[0] = 'B'
+  await saveCetPaperStudy(study.id, { answers, writingDraft: 'A draft to preserve.' })
+  await assert.rejects(submitCetPaperStudy(study.id, 'reading'))
+  const first = await submitCetPaperStudy(study.id, 'listening')
+  assert.equal(first.firstSubmission, undefined)
+  assert.equal(isCetPaperStudy(first), true)
+  assert.deepEqual(cetPaperResult(first.sectionSubmissions!.listening!.first, 'listening'), { correct: 0, compared: 1, unanswered: 24, wrong: [1] })
+  assert.equal(first.sectionSubmissions!.listening!.first.answerKey[25], '')
+  answers[0] = 'A'; answers[25] = 'A'
+  await saveCetPaperStudy(study.id, { answers })
+  const reading = await submitCetPaperStudy(study.id, 'reading')
+  assert.equal(reading.sectionSubmissions!.listening!.first.answers[0], 'B')
+  assert.equal(reading.sectionSubmissions!.reading!.first.answers[0], '')
+  assert.deepEqual(cetPaperResult(reading.sectionSubmissions!.reading!.latest, 'reading'), { correct: 1, compared: 1, unanswered: 29, wrong: [] })
+  const corrected = await submitCetPaperStudy(study.id, 'listening')
+  assert.equal(corrected.sectionSubmissions!.listening!.first.answers[0], 'B')
+  assert.equal(corrected.sectionSubmissions!.listening!.latest.answers[0], 'A')
+  assert.equal(corrected.writingDraft, 'A draft to preserve.')
+  assert.deepEqual(cetPaperQuestionNumbers('listening'), Array.from({ length: 25 }, (_, i) => i + 1))
+  assert.equal(cetPaperQuestionNumbers('reading')[0], 26)
+  assert.equal(cetPaperQuestionNumbers('reading').length, 30)
+})
+
+test('scoped histories survive backup merge, reject cross-section snapshots, and preserve legacy attempts', async (t) => {
+  paperFixture(t)
+  const study = await createCetPaperStudy(sourceId, '', Array(55).fill('A'))
+  const answers = emptyAnswers(); answers[0] = 'B'; answers[25] = 'A'
+  await saveCetPaperStudy(study.id, { answers })
+  const legacy = await submitCetPaperStudy(study.id)
+  assert.equal(cetPaperResult(cetPaperSubmissions(legacy, 'listening').first, 'listening').wrong[0], 1)
+  const listened = await submitCetPaperStudy(study.id, 'listening')
+  const read = await submitCetPaperStudy(study.id, 'reading')
+  const merged = mergeCetPaperStudies(read, listened)
+  assert.ok(merged.sectionSubmissions?.listening)
+  assert.ok(merged.sectionSubmissions?.reading)
+  assert.equal(merged.firstSubmission?.submittedAt, legacy.firstSubmission?.submittedAt)
+  assert.equal(merged.sectionSubmissions?.listening?.first.submittedAt, legacy.firstSubmission?.submittedAt)
+  assert.equal(isCetPaperStudy(JSON.parse(JSON.stringify(merged))), true)
+  const bad = structuredClone(merged)
+  bad.sectionSubmissions!.listening!.first.answers[25] = 'A'
+  assert.equal(isCetPaperStudy(bad), false)
+  const missing = structuredClone(merged)
+  Reflect.deleteProperty(missing.sectionSubmissions!.reading!, 'first')
+  assert.equal(isCetPaperStudy(missing), false)
+})
 
 /** The storage boundary serializes writers and rolls back both metadata and blobs. */
 function paperFixture(t: TestContext) {
