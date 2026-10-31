@@ -31,6 +31,25 @@ export default defineConfig({
         // 词库与音频按需缓存：首次下载后永久离线
         runtimeCaching: [
           {
+            urlPattern: /\/exams\/.*\/paper\.json(\?.*)?$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wq-cet-papers-v1',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
+            urlPattern: /\/exams\/.*\/listening\.mp3(\?.*)?$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wq-cet-recordings-v1',
+              rangeRequests: true,
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
             // 分片 URL 带 ?rev= 版本参数，正则需兼容查询串
             urlPattern: /\/data\/.*\.json(\?.*)?$/,
             handler: 'CacheFirst',

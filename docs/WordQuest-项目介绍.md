@@ -4,7 +4,7 @@
 
 在线网址：[https://runner-cpu.github.io/WordQuest/](https://runner-cpu.github.io/WordQuest/)
 
-电脑和手机均可在浏览器中打开同一网址，无需启动本地服务或连接同一个 WiFi。电脑宽屏使用左侧导航，手机窄屏使用底部五栏导航。首次访问需联网；应用资源缓存、词书下载和本机资料导入完成后，可离线使用相应内容。
+电脑和手机均可在浏览器中打开同一网址，无需启动本地服务或连接同一个 WiFi。电脑宽屏使用左侧导航，手机窄屏使用底部五栏导航。首次访问需联网；应用资源缓存、词书下载和真题录音缓存完成后，可离线使用相应内容。
 
 ## 项目名称与定位
 
@@ -26,7 +26,7 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 网站采用“今日、单词、听力、统计、我的”五个入口。“今日”集中呈现当日词汇任务、四六级备考台和情景冒险；“单词”提供词书与关卡地图；“听力”组织原创短练并连接真题学习；“统计”帮助回顾学习积累；“我的”集中展示角色、成就和外观等内容。
 
-本文介绍截至 **2026 年 10 月 30 日** 的项目功能与使用范围。
+本文介绍截至 **2026 年 10 月 31 日** 的项目功能与使用范围。
 
 <!-- pagebreak -->
 
@@ -46,15 +46,11 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 ### 近年真题学习
 
-备考台默认进入近年真题资料目录，优先使用高校公开资料。当前收录 **14 条资料入口**，覆盖 2023 年 6 月至 2026 年 6 月的 7 个场次，四级、六级各 7 条，每期沿用来源所称的第 1 套。来源包括南京大学 eol 平台和新疆第二医学院语言文化部。
+备考台默认进入站内真题库，现有 **10 套高校整理第 1 套，共 550 道客观题**，来自南京大学 eol 平台。四级 6 套，覆盖 2023 年 12 月至 2026 年 6 月；六级 4 套，为 2024 年 6 月、12 月，2025 年 6 月和 2026 年 6 月。缺少部分参考答案的套卷暂未列入完整可练目录。
 
-学习者可从高校原站查看原卷、答案资料与录音，也可以导入本机 PDF 和音频。应用提供 **55 道客观题答题卡**，并分别保存写作草稿、译文和复盘笔记。录入与原卷对应的参考答案后，可核对已答题目；首次与最近核对分别保留，订正不会覆盖首次表现。已导入的录音可在切换答题卡和写译页签时继续播放。
+题干、选项、文章、听力录音及参考答案随网站提供。学习者选择套卷即可在当前界面作答，无需来回切换网站。电脑左右分栏阅读与答题，手机分别滚动材料和题目。听力可按题组浏览与回听，切换题型保留播放器；写作和翻译原题与草稿同屏，参考内容按需展开。
 
-真题目录保存资料入口和来源信息，整卷正文通过原站或本机文件查看。高校托管资料保留其整理版本性质，练习前应核对年月、级别、套号与答案。
-
-<!-- pagebreak -->
-
-## 让学习更有吸引力
+提交后自动核对已作答的客观题，首次与最近记录分别保留，点击错题号即可回到原题订正。草稿和笔记自动保存，缓存本套题目与完整录音后可离线练习。高校整理版保留其参考性质；个别资料未提供写译参考文本，会明确说明。旧自带资料档案继续兼容。
 
 ### 用故事承载英语的实际用途
 
@@ -85,11 +81,11 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 界面以 8-bit 像素冒险为视觉主题，提供 4 种风格与 8 个配色选项。电脑端使用侧边导航，手机端使用底部五栏导航；较长的英文材料和编辑区域采用普通字体，兼顾氛围与阅读。
 
-项目使用 React、TypeScript 和 Vite 构建，结合 Tailwind CSS、Zustand、Dexie 与 ts-fsrs，支持 PWA 缓存。学习记录保存在浏览器本地 IndexedDB，并提供 JSON 备份导出与导入合并。应用资源与词书需要先缓存或下载；高校原站资料需要联网，已导入的 PDF 和录音可以离线使用。
+项目使用 React、TypeScript 和 Vite 构建，结合 Tailwind CSS、Zustand、Dexie 与 ts-fsrs，支持 PWA 缓存。学习记录保存在浏览器本地 IndexedDB，并提供 JSON 备份导出与导入合并。应用资源与词书需要先缓存或下载；站内真题首次按需加载，完整录音缓存后可离线播放，旧档案的已导入文件也可离线使用。
 
 ## 当前范围与后续方向
 
-当前版本支持词汇调度、原创练习、情景冒险、成就成长，以及真题答题卡、草稿和复盘记录。真题参考答案由用户录入；写译提供草稿与自查，表达工坊采用固定短语及可接受变体匹配。应用暂未提供 PDF 自动识题、自由口语或写译自动评分、整卷计时考试及跨设备云同步，也不将练习结果换算为 710 分或过级概率。
+当前版本支持词汇调度、原创练习、情景冒险、成就成长，以及真题答题卡、草稿和复盘记录。站内真题内置参考答案和逐题核对；写译提供草稿与参考修订，表达工坊采用固定短语及可接受变体匹配。应用暂未提供 PDF 自动识题、自由口语或写译自动评分、整卷计时考试及跨设备云同步，也不将练习结果换算为 710 分或过级概率。
 
 后续可在补充更多已核对的真题套卷、整卷计时、分题型复盘和数据迁移体验等方向继续完善。核心目标是让用户更容易开始练习、找到需要订正的地方，并愿意在第二天继续学习。
 
@@ -99,6 +95,6 @@ WordQuest 由 Word 和 Quest 组成，分别指向英语词汇与任务探索。
 
 The application brings together spaced vocabulary review, listening practice, reading exercises, writing and translation drafts, and past-paper review. Learners can explore nine original story scenarios, practise eighteen expressions, and track progress through sixty-eight achievements. Pixel characters, stamps, stars and cosmetic rewards support an ongoing learning routine.
 
-For exam preparation, WordQuest provides fourteen links to university-hosted past-paper resources, a fifty-five-question answer sheet, and separate first and latest checking records. Papers and recordings are accessed through their source websites or imported as local files. Reference answers are entered by the learner.
+For exam preparation, WordQuest provides ten university-hosted past papers directly inside the app, with 550 objective questions, recordings and reference answers. Learners read and answer on the same screen, check their work, and revisit mistakes. First and latest checking records remain separate. Writing and translation tasks include saved drafts and available reference texts.
 
-WordQuest works across desktop and mobile layouts and stores study records locally. Cached resources and imported files support offline practice. The current version does not provide automated writing assessment, predicted exam scores or cloud synchronisation.
+WordQuest works across desktop and mobile layouts and stores study records locally. Downloaded paper content and complete recordings support offline practice. The current version does not provide automated writing assessment, predicted exam scores or cloud synchronisation.

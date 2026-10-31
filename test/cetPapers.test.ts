@@ -114,6 +114,28 @@ test('CET papers: create an independent local answer card with 55 empty answers'
   assert.equal(fixture.writes(), 2)
 })
 
+test('CET papers: a built-in edition saves its reference key without exposing answers as user choices', async (t) => {
+  const fixture = paperFixture(t)
+  const key = Array<string>(55).fill('A')
+  const study = await createCetPaperStudy(sourceId, '站内真题', key, '1234567890abcdef')
+  assert.deepEqual(study.answers, emptyAnswers())
+  assert.deepEqual(study.answerKey, key)
+  assert.equal(study.paperRevision, '1234567890abcdef')
+  assert.ok(isCetPaperStudy(study))
+  key[0] = 'D'
+  assert.equal(fixture.paper(study.id)?.answerKey[0], 'A')
+  await saveCetPaperStudy(study.id, { answers: ['B', ...emptyAnswers().slice(1)] })
+  const first = await submitCetPaperStudy(study.id)
+  assert.equal(first.firstSubmission?.answerKey[0], 'A')
+  await saveCetPaperStudy(study.id, { answers: ['A', ...emptyAnswers().slice(1)] })
+  const revised = await submitCetPaperStudy(study.id)
+  assert.equal(revised.firstSubmission?.answers[0], 'B')
+  assert.equal(revised.latestSubmission?.answers[0], 'A')
+  assert.equal(revised.paperRevision, '1234567890abcdef')
+  await assert.rejects(createCetPaperStudy(sourceId, '', emptyAnswers(), '1234567890abcdef'))
+  await assert.rejects(createCetPaperStudy(sourceId, '', undefined, '1234567890abcdef'))
+})
+
 test('CET papers: delayed saves preserve newer drafts and submission history', async (t) => {
   t.mock.method(Date, 'now', () => 100)
   const fixture = paperFixture(t)

@@ -117,7 +117,7 @@ def build() -> None:
         canvas.saveState()
         canvas.setFont("Arial", 8.2)
         canvas.setFillColor(colors.HexColor("#747985"))
-        canvas.drawString(49, 24, "WordQuest  |  Project Introduction  |  2026-10-30")
+        canvas.drawString(49, 24, "WordQuest  |  Project Introduction  |  2026-10-31")
         canvas.drawRightString(letter[0] - 49, 24, str(doc.page))
         canvas.restoreState()
 

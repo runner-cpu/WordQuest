@@ -1,0 +1,82 @@
+[
+  {
+    "sourceId": "cet6-202606-set1-nju",
+    "path": "exams/cet6-202606-1/paper.json",
+    "revision": "60d3928fcf6ada00",
+    "bytes": 45029,
+    "audioBytes": 20225317,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet6-202506-set1-nju",
+    "path": "exams/cet6-202506-1/paper.json",
+    "revision": "16de6c3e17021d70",
+    "bytes": 43605,
+    "audioBytes": 18857236,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet6-202412-set1-nju",
+    "path": "exams/cet6-202412-1/paper.json",
+    "revision": "bdab81763d8a16dd",
+    "bytes": 45653,
+    "audioBytes": 14178683,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet6-202406-set1-nju",
+    "path": "exams/cet6-202406-1/paper.json",
+    "revision": "b8d8ad690252d502",
+    "bytes": 46273,
+    "audioBytes": 19814544,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202606-set1-nju",
+    "path": "exams/cet4-202606-1/paper.json",
+    "revision": "4222c1c11c62fb7c",
+    "bytes": 41003,
+    "audioBytes": 17616834,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202512-set1-nju",
+    "path": "exams/cet4-202512-1/paper.json",
+    "revision": "77c9e0f3cf8b3b3a",
+    "bytes": 43442,
+    "audioBytes": 11563066,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202506-set1-nju",
+    "path": "exams/cet4-202506-1/paper.json",
+    "revision": "55095d27fd8e0046",
+    "bytes": 40665,
+    "audioBytes": 11337330,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202412-set1-nju",
+    "path": "exams/cet4-202412-1/paper.json",
+    "revision": "08832b252e234814",
+    "bytes": 40505,
+    "audioBytes": 7025520,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202406-set1-nju",
+    "path": "exams/cet4-202406-1/paper.json",
+    "revision": "d6cf2d3dcbfc2511",
+    "bytes": 39978,
+    "audioBytes": 22562096,
+    "questionCount": 55
+  },
+  {
+    "sourceId": "cet4-202312-set1-nju",
+    "path": "exams/cet4-202312-1/paper.json",
+    "revision": "2410a6c18d20d79a",
+    "bytes": 40843,
+    "audioBytes": 24187048,
+    "questionCount": 55
+  }
+]

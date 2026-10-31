@@ -19,6 +19,8 @@ export interface CetPaperStudy {
   id: string
   sourceId: string
   variant: string
+  /** Present only for studies created from a verified built-in edition. */
+  paperRevision?: string
   createdAt: number
   updatedAt: number
   answers: string[]

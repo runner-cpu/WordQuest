@@ -1,7 +1,7 @@
 /**
- * 高校公开的四六级真题资料目录，仅保存来源与附件元数据。
- * 不在应用中复制试卷正文；高校托管、个人整理与考试院正式发布应区别对待。
- * 核对日期：2026-10-30。尚未举行的 2026 年 12 月考试不在目录中。
+ * 高校公开的四六级真题资料与原始出处。
+ * 可直接练习的套卷见 cetReadyPapers.json；保留旧来源 ID 以兼容本机档案。
+ * 高校整理版与考试院正式发布应区别对待；未举行的考试不在目录中。
  */
 export interface CetPaperSource {
   id: string;
@@ -32,6 +32,17 @@ const xjAsset = (fileId: number) =>
   `https://www.xjsmc.edu.cn/system/_content/download.jsp?urltype=news.DownloadAttachUrl&owner=1838905640&wbfileid=${fileId}`;
 
 export const CET_PAPER_SOURCES: CetPaperSource[] = [
+  {
+    id: 'cet4-202312-set1-nju',
+    level: 'cet4',
+    year: 2023,
+    month: 12,
+    title: '2023年12月四级真题 · 第1套',
+    provider: NJU_PROVIDER,
+    sourceUrl: 'https://eol.nju.edu.cn/cet4/papers/202312-1.html',
+    note: NJU_NOTE,
+    checkedAt: '2026-10-31',
+  },
   {
     id: 'cet4-202606-set1-nju',
     level: 'cet4',

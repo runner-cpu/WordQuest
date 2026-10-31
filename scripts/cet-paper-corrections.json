@@ -1,0 +1,66 @@
+{
+  "note": "Transcribed from each linked university paper.pdf to restore line-wrapped matching statements and the missing first reading passage. No new exam text is authored here.",
+  "papers": {
+    "cet4-202606-set1-nju": {
+      "matchingPrompts": {
+        "36": "The author's daughter slept throughout the last leg of their flight to Great Barrier Island.",
+        "37": "The lodge where the author stayed provided very delicious food.",
+        "38": "Many people are attracted to Great Barrier Island because of the incredible fishing sites around it.",
+        "39": "A well-known artist failed to purchase a house on Great Barrier Island.",
+        "40": "Unable to fall asleep after a long flight, the author was pleased to enjoy the most gorgeous view of the night sky in his life.",
+        "41": "Great Barrier Island is compared to another island which attracted a lot of artists and people who wished to stay away from city life half a century ago.",
+        "42": "One most memorable part of the author's visit to Great Barrier Island was a one-hour walk to its centre's hot springs.",
+        "43": "Great Barrier Island has officially been recognized for its extraordinary starry nights.",
+        "44": "Great Barrier Island is not connected to any public power supply lines.",
+        "45": "It is strange that light pollution on Great Barrier Island mainly comes from a faraway island to the north."
+      },
+      "matchingLastParagraphEndsAt": "the island knows exactly what kind of star watching it prefers."
+    },
+    "cet6-202606-set1-nju": {
+      "matchingPrompts": {
+        "36": "Pieter Levels created a chat system to satisfy the need of digital nomads for information tourists normally don't seek.",
+        "37": "It is said that digital nomads do not enjoy as much freedom as most people suppose.",
+        "38": "Different from tourists, digital nomads travel to foreign places with work to do.",
+        "39": "Digital nomads believe their lifestyle enables them to broaden their vision and do a better job.",
+        "40": "The first thing a typical traveller possibly does after arriving at a city is search for information online about its popular tourist attractions.",
+        "41": "One digital nomad thinks their life in foreign cities has its disadvantages.",
+        "42": "Travelling around helps to keep digital nomads inspired.",
+        "43": "The number of self-employed remote workers living a digital nomad's life is fast increasing.",
+        "44": "Pieter Levels says his life as a nomad has transformed not only his idea of citizenship, but his choice of companions.",
+        "45": "Interactions with local people and institutions provide nomads with far more cultural information than a visit to the national museum."
+      },
+      "matchingLastParagraphEndsAt": "it's great that that's the time we're in now.\""
+    },
+    "cet4-202512-set1-nju": {
+      "matchingPrompts": {
+        "36": "An increasing amount of data indicates that installing bike lanes raises local business revenues.",
+        "37": "According to a magazine writer, some small business owners' resistance to bike lanes arises from cultural factors.",
+        "38": "A stretch of Skillman Ave witnessed not only a big increase in sales but also the opening of new businesses.",
+        "39": "When people have no way out in crises, they are more likely to embrace changes.",
+        "40": "According to one survey, city design with bike lanes and pedestrian space did not negatively impact local businesses.",
+        "41": "Despite increased business activity on Skillman Ave, many store owners insisted the bike lanes were destroying their area.",
+        "42": "In a war of culture, data does not help much in changing people's minds.",
+        "43": "A businesswoman said her business dropped sharply when parking space gave way to a bike lane, because most of her customers came by car.",
+        "44": "Local business owners on Skillman Ave argued that their businesses would be ruined when parking spots were replaced by bike lanes.",
+        "45": "People may find it more pleasant to wander around streets redesigned for cycling and walking."
+      },
+      "carefulFirstPassage": "All living organisms on Earth are exposed to a 24-hour day-night cycle. This cycle is the\nreason why people rest at night and are active during the day. Consequently, all human\nbody functions also follow this daily rhythm, and the timing of behaviors like exercise or\nfood intake can significantly influence your health. For example, eating at night can lead\nto weight gain over time because food intake at night leads to increased fat storage.\nMany drug targets in the body follow a 24-hour cycle, too. This means that the specific\nproteins a drug is designed to modify can react differently to the medicine over the\ncourse of a 24-hour time period. Because how the body responds to a drug can differ\ndepending on the time it is taken, it logically follows that taking medicines at specific\ntimes could help increase their effectiveness and reduce unwanted side effects.\nWhen doctors prescribe medicine for people, they rarely consider the best time to take\nit. There are two main reasons for that oversight. First, many physicians are not aware\nthat some drugs work better during a specific time of the day. And second, most drugs\nhave not been studied for possible different effects during a 24-hour cycle. Therefore,\npatients are directed to take most drugs during the morning or evening primarily to\nensure compliance.\nOver 50 years ago, researchers found that the cholesterol drug simvastatin is more\neffective at lowering cholesterol levels when taken at night rather than during the day.\nThis is because the liver enzyme these drugs target is more active at night.\nTaking medicine at the wrong time can even cause harm. My colleagues and I wondered\nwhether midazolam, the most common sedative used in surgical procedures worldwide,\nmight interfere with the internal clock that protects the heart at night. Currently, there\nare no guidelines regarding when midazolam should be administered.\nMore research is needed to determine the best times to administer treatments for\ndifferent diseases. I believe taking drug timing into account could help make treatments\nmore effective and help more people worldwide.",
+      "matchingLastParagraphEndsAt": "If data won’t change minds, customers might."
+    },
+    "cet6-202512-set1-nju": {
+      "matchingPrompts": {
+        "36": "It is now possible to fully automate a burger restaurant with little human supervision.",
+        "37": "At a robot-powered US company, complicated tasks still have to be performed by humans.",
+        "38": "More automation appears to be a certainty in industries eager to cut labour costs and raise profits.",
+        "39": "There are often front-page reports of failures in technological innovation of the restaurant industry.",
+        "40": "Robot-chef Flippy does not fear laborious work, nor does it make any complaints.",
+        "41": "Digital technology makes it possible for businesses to innovate restaurant models.",
+        "42": "Fondness for human warmth in catering to customers will give hope to employees who are afraid of losing jobs to robots.",
+        "43": "There is an acute shortage of experienced chefs in the catering industry and automated cooking is expected to fill the gap.",
+        "44": "Over the coming decade, many jobs in traditional restaurants will disappear due to robot delivery.",
+        "45": "According to an expert in AI and robotics, it may be quite some time before a master robot-chef appears."
+      },
+      "matchingLastParagraphEndsAt": "the robots are coming."
+    }
+  }
+}

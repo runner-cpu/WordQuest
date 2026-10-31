@@ -62,6 +62,7 @@ function validFileRef(value: unknown, studyId: string, kind: CetPaperFileKind): 
 export function isCetPaperStudy(value: unknown): value is CetPaperStudy {
   if (!record(value) || typeof value.id !== 'string' || !/^cet-paper-[\w-]+$/.test(value.id) ||
     !knownSource(value.sourceId) || typeof value.variant !== 'string' || value.variant.length > 200 ||
+    (value.paperRevision !== undefined && (typeof value.paperRevision !== 'string' || !/^[a-f0-9]{16}$/.test(value.paperRevision))) ||
     !timestamp(value.createdAt) || !timestamp(value.updatedAt) || value.createdAt > value.updatedAt ||
     !validAnswers(value.answers) || !validAnswers(value.answerKey) ||
     typeof value.writingDraft !== 'string' || typeof value.translationDraft !== 'string' || typeof value.notes !== 'string' ||
@@ -84,15 +85,18 @@ async function requireStudy(id: string): Promise<CetPaperStudy> {
   return study
 }
 
-export async function createCetPaperStudy(sourceId: string, variant = ''): Promise<CetPaperStudy> {
+export async function createCetPaperStudy(sourceId: string, variant = '', answerKey?: string[], paperRevision?: string): Promise<CetPaperStudy> {
   if (!knownSource(sourceId)) throw new Error('未找到这份公开真题来源')
   if (typeof variant !== 'string' || variant.length > 200) throw new Error('套卷名称须在 200 字以内')
+  if (answerKey !== undefined && (!validAnswers(answerKey) || answerKey.some((answer) => !answer))) throw new Error('内置参考答案不完整')
+  if (paperRevision !== undefined && (!/^[a-f0-9]{16}$/.test(paperRevision) || !answerKey)) throw new Error('内置题目版本无效')
   const now = nextTimestamp()
   const study: CetPaperStudy = {
     id: `cet-paper-${crypto.randomUUID()}`, sourceId, variant, createdAt: now, updatedAt: now,
-    answers: Array<string>(QUESTION_COUNT).fill(''), answerKey: Array<string>(QUESTION_COUNT).fill(''),
+    answers: Array<string>(QUESTION_COUNT).fill(''), answerKey: answerKey ? [...answerKey] : Array<string>(QUESTION_COUNT).fill(''),
     writingDraft: '', translationDraft: '', notes: '', elapsedSeconds: 0, files: {},
   }
+  if (paperRevision) study.paperRevision = paperRevision
   await db.cetPapers.add(study)
   return structuredClone(study)
 }
@@ -239,7 +243,7 @@ export function cetPaperResult(submission?: CetPaperSubmission): { correct: numb
 
 /** 草稿取更新的一份；首次和最近核对快照独立合并，保留原始学习历史。 */
 export function mergeCetPaperStudies(local: CetPaperStudy | undefined, incoming: CetPaperStudy): CetPaperStudy {
-  if (local && (local.id !== incoming.id || local.sourceId !== incoming.sourceId)) throw new Error('真题档案来源冲突')
+  if (local && (local.id !== incoming.id || local.sourceId !== incoming.sourceId || local.paperRevision !== incoming.paperRevision)) throw new Error('真题档案来源或题目版本冲突')
   const newer = !local || incoming.updatedAt > local.updatedAt ? incoming : local
   const older = newer === incoming ? local : incoming
   const submissions = [local?.firstSubmission, local?.latestSubmission, incoming.firstSubmission, incoming.latestSubmission]
