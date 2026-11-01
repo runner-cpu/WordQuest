@@ -65,6 +65,9 @@
 .cet-ready-submit .cet-ready-tools { margin-bottom: 0; }
 .cet-ready-footer { padding-block: 10px; }
 .cet-ready-footer .cet-paper-save-status { flex-basis: 180px; }
+.cet-ready-footer .cet-ready-tools { flex-basis: 100%; margin: 0; }
+.cet-ready-footer .cet-ready-tools .pixel-btn { white-space: normal; }
+.cet-ready-footer:has([aria-label='处理草稿冲突']) { max-height: 48dvh; overflow-y: auto; }
 @media (max-width: 767px) {
   .cet-ready-header { padding: 10px 12px; }
   .cet-ready-header h2 { font-size: 18px; font-family: var(--font-readable, system-ui, sans-serif); }

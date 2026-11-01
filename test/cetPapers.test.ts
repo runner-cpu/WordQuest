@@ -13,6 +13,7 @@ import {
   parseCetAnswerKey,
   saveCetPaperStudy,
   submitCetPaperStudy,
+  CetDraftConflict,
 } from '../src/core/cetPapers.ts'
 import type { CetPaperStudy } from '../src/types/cetPaper.ts'
 
@@ -20,6 +21,33 @@ const sourceId = CET_PAPER_SOURCES[0].id
 const emptyAnswers = () => Array<string>(55).fill('')
 const pdf = (name = 'paper.pdf') => new File(['%PDF-1.7\nexample'], name, { type: 'application/pdf' })
 const audio = (name = 'listening.mp3') => new File([new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0])], name, { type: 'audio/mpeg' })
+
+test('concurrent drafts merge different questions and writing without dropping either tab', async t => {
+  paperFixture(t)
+  const original = await createCetPaperStudy(sourceId)
+  const firstAnswers = emptyAnswers(); firstAnswers[0] = 'B'
+  await saveCetPaperStudy(original.id, { answers: firstAnswers, writingDraft: 'Remote writing' }, undefined, original)
+  const secondAnswers = emptyAnswers(); secondAnswers[25] = 'N'
+  const saved = await saveCetPaperStudy(original.id, { answers: secondAnswers, writingDraft: '', notes: 'Local notes' }, undefined, original)
+  assert.equal(saved.answers[0], 'B')
+  assert.equal(saved.answers[25], 'N')
+  assert.equal(saved.writingDraft, 'Remote writing')
+  assert.equal(saved.notes, 'Local notes')
+})
+
+test('same-question conflict aborts all changes until user explicitly resolves it', async t => {
+  paperFixture(t)
+  const original = await createCetPaperStudy(sourceId)
+  const answers = emptyAnswers(); answers[0] = 'A'
+  const remote = await saveCetPaperStudy(original.id, { answers }, undefined, original)
+  const local = [...answers]; local[0] = 'B'
+  await assert.rejects(saveCetPaperStudy(original.id, { answers: local, notes: 'not yet saved' }, undefined, original), CetDraftConflict)
+  const preserved = await saveCetPaperStudy(original.id, {}, undefined, remote)
+  assert.equal(preserved.answers[0], 'A')
+  assert.equal(preserved.notes, '')
+  const resolved = await saveCetPaperStudy(original.id, { answers: local }, undefined, preserved)
+  assert.equal(resolved.answers[0], 'B')
+})
 
 test('listening and reading submit independently without replacing either first attempt or shared drafts', async (t) => {
   paperFixture(t)

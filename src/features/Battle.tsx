@@ -11,6 +11,7 @@ import { Chest, Mascot, Monster, PixelBar, PixelButton } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
 import { loadRoots, rootsForWord, type RootEntry } from '../core/roots'
 import { useUi } from '../state/ui'
+import { readAppearance, rememberAppearance } from '../ui/theme'
 
 interface BattleProps {
   reviews: Word[]
@@ -109,7 +110,7 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
   const answeredCountRef = useRef(0)
   const [learnedWords, setLearnedWords] = useState<LearnedWord[]>([])
   /** 挑战模式：每题限时，超时判错 */
-  const [challenge, setChallenge] = useState(() => localStorage.getItem('wq:challenge') === '1')
+  const [challenge, setChallenge] = useState(() => readAppearance('wq:challenge') === '1')
   const [timeLeftPct, setTimeLeftPct] = useState(1)
   const deadlineRef = useRef(0)
   const timeoutFiredRef = useRef(false)
@@ -552,7 +553,7 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
           onClick={() => {
             const next = !challenge
             setChallenge(next)
-            localStorage.setItem('wq:challenge', next ? '1' : '0')
+            rememberAppearance('wq:challenge', next ? '1' : '0')
           }}
           aria-pressed={challenge}
           aria-label={challenge ? '关闭限时挑战' : '开启限时挑战'}

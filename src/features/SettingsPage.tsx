@@ -15,7 +15,7 @@ import { formatBytes, storageInfo, type StorageInfo } from '../core/storage'
 import { HUE_PRESETS, applyCustomHue, clearCustomHue, customTokens } from '../core/customTheme'
 import type { BookId } from '../types/model'
 
-import { THEMES, STYLES, applyTheme, applyStyle } from '../ui/theme'
+import { THEMES, STYLES, applyTheme, applyStyle, readAppearance, rememberAppearance } from '../ui/theme'
 export { THEMES, STYLES, applyTheme, applyStyle } from '../ui/theme'
 
 export function SettingsPage({ onBack }: { onBack: () => void }) {
@@ -23,7 +23,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const setProfile = useUi((s) => s.setProfile)
   const pushToast = useUi((s) => s.pushToast)
   const [muted, setMutedState] = useState(isMuted())
-  const [scanlines, setScanlines] = useState(localStorage.getItem('wq:scanlines') !== 'off')
+  const [scanlines, setScanlines] = useState(() => readAppearance('wq:scanlines') !== 'off')
   const [customDate, setCustomDate] = useState(false)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState<BookId | null>(null)
@@ -39,8 +39,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const downloaded = useLiveQuery(importedBookCounts, [])
 
   useEffect(() => {
-    void ensureProfile().then(setProfile)
-  }, [setProfile])
+    void ensureProfile().then(setProfile).catch(() => pushToast('设置读取未完成，请返回后重试'))
+  }, [setProfile, pushToast])
 
   useEffect(() => {
     void storageInfo().then(setStorage)
@@ -145,7 +145,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   }
 
   const ownedThemes = ownedThemeList(profile)
-  const theme = profile?.theme ?? localStorage.getItem('wq:theme') ?? 'night'
+  const theme = profile?.theme ?? readAppearance('wq:theme') ?? 'night'
   const studyBook = profile?.studyBook ?? (profile?.examType === 'cet6' ? 'cet6-core' : 'cet4-core')
   const dateInfo = examDateInfo(profile?.examDate)
 
@@ -346,7 +346,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   if (t.id === 'custom') {
                     const hue = profile?.customHue ?? 210
                     applyCustomHue(hue)
-                    localStorage.setItem('wq:custom-hue', String(hue))
+                    rememberAppearance('wq:custom-hue', String(hue))
                   } else {
                     clearCustomHue()
                   }
@@ -381,7 +381,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => {
                 const hue = Number(e.target.value)
                 applyCustomHue(hue)
-                localStorage.setItem('wq:custom-hue', String(hue))
+                rememberAppearance('wq:custom-hue', String(hue))
                 void save({ customHue: hue, theme: 'custom' })
               }}
               className="h-8 w-full accent-[var(--wq-gold)]"
@@ -393,7 +393,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   key={p.hue}
                   onClick={() => {
                     applyCustomHue(p.hue)
-                    localStorage.setItem('wq:custom-hue', String(p.hue))
+                    rememberAppearance('wq:custom-hue', String(p.hue))
                     void save({ customHue: p.hue, theme: 'custom' })
                   }}
                   className="flex items-center gap-1 border-2 border-edge px-2 py-1 text-px12 text-dim"
@@ -433,7 +433,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             onToggle={() => {
               const next = !scanlines
               setScanlines(next)
-              localStorage.setItem('wq:scanlines', next ? 'on' : 'off')
+              rememberAppearance('wq:scanlines', next ? 'on' : 'off')
               document.documentElement.dataset.scanlines = next ? 'on' : 'off'
             }}
           />
@@ -492,7 +492,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
         <div className="space-y-1 text-px12 text-dim">
           <p>单词勇者 WordQuest · 四六级学习应用</p>
           <p>词库 ECDICT（MIT）· 复习算法 ts-fsrs（MIT）· 字体 Fusion Pixel（OFL 1.1）</p>
-          <p>完全离线可用，无内购，无广告。</p>
+          <p>已下载的词书、已缓存的题目与录音可离线使用。无内购，无广告。</p>
         </div>
       </Panel>
     </div>

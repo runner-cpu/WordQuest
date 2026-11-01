@@ -1,3 +1,4 @@
+import { readPreference, rememberPreference } from './preferences'
 import { db, dateKeyOffset, todayKey } from '../db/database'
 import { ensureProfile } from './profile'
 
@@ -103,7 +104,7 @@ export async function buildWeeklyReport(): Promise<WeeklyReport | null> {
 /** 本周的周报是否已经看过 */
 export function weeklySeen(): boolean {
   try {
-    return JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}')[weekIdOf()] === true
+    return JSON.parse(readPreference(SEEN_KEY) ?? '{}')[weekIdOf()] === true
   } catch {
     return false
   }
@@ -111,12 +112,12 @@ export function weeklySeen(): boolean {
 
 export function markWeeklySeen() {
   try {
-    const map = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}')
+    const map = JSON.parse(readPreference(SEEN_KEY) ?? '{}')
     // 只保留最近 8 周，防止无限增长
     const entries = Object.entries({ ...map, [weekIdOf()]: true })
     const trimmed = Object.fromEntries(entries.slice(-8))
-    localStorage.setItem(SEEN_KEY, JSON.stringify(trimmed))
+    rememberPreference(SEEN_KEY, JSON.stringify(trimmed))
   } catch {
-    localStorage.setItem(SEEN_KEY, JSON.stringify({ [weekIdOf()]: true }))
+    rememberPreference(SEEN_KEY, JSON.stringify({ [weekIdOf()]: true }))
   }
 }

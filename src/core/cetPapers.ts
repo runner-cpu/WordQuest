@@ -22,6 +22,35 @@ const AUDIO_TYPES = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wa
 const PATCH_KEYS = ['variant', 'answers', 'answerKey', 'writingDraft', 'translationDraft', 'notes', 'elapsedSeconds'] as const
 type StudyPatch = Partial<Pick<CetPaperStudy, typeof PATCH_KEYS[number]>>
 
+export class CetDraftConflict extends Error {
+  constructor(public current: CetPaperStudy) {
+    super('另一页面修改了同一道题或同一份草稿。本页输入已保留，请选择如何处理冲突。')
+  }
+}
+
+/** Merge only locally changed fields and question slots; never replace unrelated edits. */
+export function mergeCetDraft(previous: CetPaperStudy, base: StudyPatch, patch: StudyPatch): StudyPatch {
+  const merged: StudyPatch = {}
+  for (const key of PATCH_KEYS) {
+    if (!(key in patch)) continue
+    const value = patch[key]
+    if (key === 'answers' || key === 'answerKey') {
+      const before = base[key]
+      const next = value as string[]
+      if (!before) throw new Error('缺少草稿原始版本')
+      merged[key] = previous[key].map((remote, index) => {
+        if (next[index] === before[index]) return remote
+        if (remote !== before[index] && remote !== next[index]) throw new CetDraftConflict(previous)
+        return next[index]
+      })
+    } else if (value !== base[key]) {
+      if (previous[key] !== base[key] && previous[key] !== value) throw new CetDraftConflict(previous)
+      Object.assign(merged, { [key]: value })
+    }
+  }
+  return merged
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -125,7 +154,7 @@ export async function createCetPaperStudy(sourceId: string, variant = '', answer
 }
 
 /** 编辑时刻早于当前档案的自动保存不会覆盖新稿、提交或文件导入。 */
-export async function saveCetPaperStudy(id: string, patch: StudyPatch, editedAt?: number): Promise<CetPaperStudy> {
+export async function saveCetPaperStudy(id: string, patch: StudyPatch, editedAt?: number, base?: StudyPatch): Promise<CetPaperStudy> {
   if (!record(patch) || Object.keys(patch).some((key) => !(PATCH_KEYS as readonly string[]).includes(key)) ||
     (editedAt !== undefined && !timestamp(editedAt))) throw new Error('档案内容或保存时间无效')
   for (const key of PATCH_KEYS) {
@@ -142,9 +171,9 @@ export async function saveCetPaperStudy(id: string, patch: StudyPatch, editedAt?
   const copiedPatch = structuredClone(patch)
   return db.transaction('rw', [db.cetPapers], async () => {
     const previous = await requireStudy(id)
-    if (editedAt !== undefined && editedAt <= previous.updatedAt) return previous
-    const updatedAt = editedAt ?? nextTimestamp(previous.updatedAt)
-    const study: CetPaperStudy = { ...previous, ...copiedPatch, updatedAt }
+    if (!base && editedAt !== undefined && editedAt <= previous.updatedAt) return previous
+    const updatedAt = base ? nextTimestamp(previous.updatedAt) : editedAt ?? nextTimestamp(previous.updatedAt)
+    const study: CetPaperStudy = { ...previous, ...(base ? mergeCetDraft(previous, base, copiedPatch) : copiedPatch), updatedAt }
     await db.cetPapers.put(study)
     return structuredClone(study)
   })

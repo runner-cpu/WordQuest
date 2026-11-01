@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+.learning-report-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.learning-report-table th, .learning-report-table td { padding: 12px 8px; border-bottom: 1px solid var(--wq-edge); text-align: right; font-variant-numeric: tabular-nums; }
+.learning-report-table th:first-child { text-align: left; }
+.learning-report-table thead { color: var(--wq-dim); }
+.learning-report-table tbody th { font-weight: 500; }
+.cet-progress-report .readable { font-size: 16px; line-height: 1.75; }
+.cet-progress-report .section-head h2 { font-size: 24px; line-height: 1.5; }
+@media (max-width: 360px) { .learning-report-table th, .learning-report-table td { padding-inline: 4px; } }
+
 /* ==========================================================================
    像素设计令牌（§7.1）
    --------------------------------------------------------------------------
@@ -960,4 +969,13 @@ body {
   .expression-sentence { padding: 16px; font-size: 18px; }
   .expression-actions > .pixel-btn { min-height: 44px; }
   .expression-actions .expression-reveal { margin-right: auto; }
+}
+
+/* Keep mobile form text readable without triggering focus zoom in Safari. */
+@media (max-width: 767px) {
+  html[data-style] .pixel-input:not(.text-px24):not(.text-px36) {
+    font-family: var(--font-readable, system-ui, sans-serif);
+    font-size: 16px;
+    min-height: 44px;
+  }
 }

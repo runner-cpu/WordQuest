@@ -1,5 +1,6 @@
 import { applyCustomHue, clearCustomHue } from '../core/customTheme'
 import type { Profile } from '../types/model'
+import { readPreference, rememberPreference } from '../core/preferences'
 
 /** 主题清单与轻量应用方法独立于设置页，避免首页加载整页设置。 */
 export const THEMES: {
@@ -29,19 +30,11 @@ export const STYLES: { id: string; name: string; desc: string }[] = [
 
 /** 外观缓存不可用时，仍可用 IndexedDB 内的资料打开应用。 */
 export function readAppearance(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
+  return readPreference(key)
 }
 
-function rememberAppearance(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // 外观已应用到当前页面，缓存失败不打断学习。
-  }
+export function rememberAppearance(key: string, value: string) {
+  rememberPreference(key, value)
 }
 
 export function applyTheme(themeId: string, customHue = 210) {

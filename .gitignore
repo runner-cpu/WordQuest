@@ -4,6 +4,8 @@ data/raw/
 data/npmtmp/
 data/font/
 .playwright-mcp/
+test-results/
+playwright-report/
 .mimosa/
 .env
 .env.*

@@ -3,6 +3,9 @@ import { db, dateKeyOffset } from '../db/database'
 import { EmptyState, Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import { levelProgress, rankFromPower } from '../core/game'
 import { useUi } from '../state/ui'
+import { reviewForecast } from '../core/learningReport'
+import { useStudyClock } from '../state/useStudyClock'
+import { CetProgressReport } from './CetProgressReport'
 
 /**
  * 统计页。
@@ -12,30 +15,28 @@ import { useUi } from '../state/ui'
  */
 export function StatsPage() {
   const profile = useUi((s) => s.profile)
+  const setTab = useUi((s) => s.setTab)
+  const clock = useStudyClock()
+  const day = dateKeyOffset(0, new Date(clock))
 
   const daily = useLiveQuery(async () => {
     const keys = Array.from({ length: 182 }, (_, i) => dateKeyOffset(-i))
     const rows = await db.dailyLogs.bulkGet(keys)
     return keys.map((k, i) => ({ date: k, log: rows[i] ?? null })).reverse()
-  }, [])
+  }, [day])
 
   const totals = useLiveQuery(async () => {
-    const [stats, logs, words, rlogs] = await Promise.all([
+    const [stats, logs, rlogs] = await Promise.all([
       db.stats.toArray(),
       db.dailyLogs.toArray(),
-      db.words.toArray(),
       db.reviewLogs.toArray(),
     ])
-    const now = Date.now()
+    const now = clock
     const learned = stats.filter((s) => s.fsrs.reps > 0)
     const mastered = stats.filter((s) => s.state === 'mastered')
     const due = learned.filter((s) => s.fsrs.due <= now)
 
-    const forecast = Array.from({ length: 7 }, (_, i) => {
-      const start = now + i * 86400000
-      const end = start + 86400000
-      return learned.filter((s) => s.fsrs.due > start && s.fsrs.due <= end).length
-    })
+    const forecast = reviewForecast(learned.map(s => s.fsrs.due), now)
 
     const dist = {
       new: stats.filter((s) => s.state === 'new').length,
@@ -45,7 +46,8 @@ export function StatsPage() {
     }
 
     // 词频难度分布：看用户是否总在背低频难词
-    const byId = new Map(words.map((w) => [w.id, w]))
+    const words = await db.words.bulkGet(learned.map(s => s.wordId))
+    const byId = new Map(words.filter(w => w !== undefined).map(w => [w.id, w]))
     const weightDist = { easy: 0, mid: 0, hard: 0 }
     for (const s of learned) {
       const w = byId.get(s.wordId)
@@ -114,7 +116,7 @@ export function StatsPage() {
       streakDays,
       hourly,
     }
-  }, [])
+  }, [clock])
 
   const lp = levelProgress(profile?.xp ?? 0)
   const rank = rankFromPower(profile?.powerPeak ?? 0)
@@ -122,7 +124,7 @@ export function StatsPage() {
 
   const vocabCurve = (() => {
     if (!daily) return []
-    let acc = 0
+    let acc = Math.max(0, (totals?.learned ?? 0) - daily.reduce((sum, entry) => sum + (entry.log?.newLearned ?? 0), 0))
     return daily.map(({ date, log }) => {
       acc += log?.newLearned ?? 0
       return { date, total: acc }
@@ -200,15 +202,20 @@ export function StatsPage() {
     URL.revokeObjectURL(url)
   }
 
+  if (!totals || !daily) return <div className="p-4 readable text-dim" role="status">正在读取学习报告…</div>
+
   if (!hasData) {
     return (
-      <div className="p-3 pb-24 md:p-5 md:pb-8">
+      <div className="space-y-3 p-3 pb-24 md:p-5 md:pb-8">
+        <CetProgressReport />
         <Panel>
           <EmptyState
             icon="chart"
-            title="还没有学习数据"
-            hint="完成第一轮词卡学习后，这里会出现已学词数、词汇练习正确率、复习状态和记忆估算。"
+            title="词卡报告等待第一次练习"
+            hint="真题记录在上方。完成词卡练习后，这里会显示词汇积累与到期复习量。"
           />
+          {totals.listeningMinutes > 0 && <p className="readable text-dim">原创听力累计练习 {totals.listeningMinutes} 分钟。</p>}
+          <PixelButton onClick={() => setTab('today')}>回到今日开始学习</PixelButton>
         </Panel>
       </div>
     )
@@ -216,19 +223,13 @@ export function StatsPage() {
 
   const maxVocab = Math.max(1, ...vocabCurve.map((v) => v.total))
 
-  /**
-   * 正确率曲线的 Y 映射：聚焦 40%-100%。
-   * 若从 0 开始，80% 与 90% 的差异会被压成一条几乎水平的线，看不出进步。
-   */
-  const accY = (acc: number) => {
-    const clamped = Math.min(1, Math.max(0.4, acc))
-    return 40 - ((clamped - 0.4) / 0.6) * 38
-  }
+  const accY = (acc: number) => 40 - Math.min(1, Math.max(0, acc)) * 38
 
   return (
     <div className="space-y-3 p-3 pb-24 md:p-5 md:pb-8">
+      <CetProgressReport />
       <Panel>
-        <SectionHead>学习报告</SectionHead>
+        <SectionHead>词卡学习报告</SectionHead>
         <p className="readable text-px12 text-dim">这里汇总所有词书的词卡练习与学习时长。词卡积累阶段、练习正确率和记忆估算用于安排复习；四六级听力、阅读、写作与翻译需分别训练和评估。</p>
       </Panel>
       <Panel className="!p-0">
@@ -241,7 +242,7 @@ export function StatsPage() {
       </Panel>
 
       <Panel>
-        <SectionHead right={`共 ${totals?.learned ?? 0} 词`}>已学词卡累计</SectionHead>
+        <SectionHead right={`共 ${totals?.learned ?? 0} 词`}>近半年词卡积累</SectionHead>
         <div className="h-32 w-full">
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-full w-full" role="img" aria-label="已学词卡累计曲线">
             {[0, 10, 20, 30, 40].map((y) => (
@@ -344,9 +345,13 @@ export function StatsPage() {
             </div>
             <div className="mt-1 flex justify-between text-px12 text-dim">
               <span>{totals.accuracyTrend[0].date.slice(5)}</span>
-              <span>虚线 = 80%</span>
+              <span>纵轴 0–100% · 虚线 80%</span>
               <span>{totals.accuracyTrend[totals.accuracyTrend.length - 1].date.slice(5)}</span>
             </div>
+            <details className="readable mt-3 text-dim">
+              <summary className="min-h-11 cursor-pointer">查看逐日正确率数据</summary>
+              <ul>{totals.accuracyTrend.map(point => <li key={point.date}>{point.date}：{Math.round(point.acc * 100)}%</li>)}</ul>
+            </details>
           </>
         ) : (
           <p className="readable text-px12 text-dim">至少完成两天（每天 5 题以上）才能看到趋势。</p>
@@ -382,7 +387,7 @@ export function StatsPage() {
       </Panel>
 
       <Panel>
-        <SectionHead right="到期复习优先于新词">未来 7 天复习量</SectionHead>
+        <SectionHead right="今天包含逾期词卡">未来 7 天复习量</SectionHead>
         <div className="flex items-end justify-between gap-1">
           {totals?.forecast.map((n, i) => {
             const max = Math.max(1, ...(totals.forecast ?? [1]))

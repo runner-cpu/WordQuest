@@ -5,6 +5,7 @@ import type { CetPaperScope, CetPaperStudy, CetPaperSubmission } from '../types/
 import type { CetReadyPaper, CetReadyQuestion } from '../types/cetReadyPaper'
 import { PixelButton } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
+import { englishWordCount } from '../core/learningReport'
 import { useCetPaperDraft } from './useCetPaperDraft'
 import './cetPaperWorkspace.css'
 import './cetReadyWorkspace.css'
@@ -20,7 +21,7 @@ const statusText = { saved: '已保存到本机', dirty: '稍后自动保存', s
 export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { paper: CetReadyPaper; initial: CetPaperStudy; onClose: () => void; scope?: CetPaperScope }) {
   const sections = SECTIONS.filter((item) => scope === 'all' || (scope === 'listening' ? item.id === 'listening' : item.id !== 'listening'))
   const firstSection = sections[0].id
-  const { study, draft, choose, update, action, saveState, error, busy } = useCetPaperDraft(initial)
+  const { study, draft, choose, update, action, saveState, error, busy, conflict, resolveConflict } = useCetPaperDraft(initial)
   const [section, setSection] = useState<Section>(firstSection)
   const [group, setGroup] = useState(0)
   const [reading, setReading] = useState(0)
@@ -31,6 +32,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [downloadError, setDownloadError] = useState('')
   const [showSubmit, setShowSubmit] = useState(false)
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'wrong' | 'unanswered'>('all')
   const download = useRef<AbortController>()
   const audio = useRef<HTMLAudioElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -41,6 +43,9 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
   const questions = readyPaperQuestions(paper).filter((question) => numbers.includes(question.number))
   const submissions = cetPaperSubmissions(study, scope)
   const latestSubmission = submissions.latest
+  const latestResult = cetPaperResult(latestSubmission, scope)
+  const visibleQuestions = questions.filter(q => reviewFilter === 'all' || (reviewFilter === 'wrong' ? latestResult.wrong.includes(q.number) : !latestSubmission?.answers[q.number - 1]))
+  const nextUnanswered = numbers.find(number => !draft.answers[number - 1])
   const scopeName = scope === 'listening' ? '听力' : scope === 'reading' ? '阅读与写译' : '本套练习'
   const audioUrl = cetPaperUrl(paper.assets.audio.path, paper.assets.audio.sha256)
   close.current = () => { void action(async () => { onClose() }) }
@@ -70,7 +75,11 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
     else if (number <= 35) setSection('banked')
     else if (number <= 45) { setSection('matching'); setMatching(number) }
     else { setSection('careful'); setReading(number < 51 ? 0 : 1) }
-    requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>(`#ready-q-${number}`)?.scrollIntoView({ block: 'nearest' }))
+    requestAnimationFrame(() => {
+      const target = dialog.current?.querySelector<HTMLElement>(`#ready-q-${number}`)
+      target?.scrollIntoView({ block: 'nearest' })
+      target?.querySelector<HTMLElement>('input:checked, select, input')?.focus({ preventScroll: true })
+    })
   }
 
   async function downloadPaper() {
@@ -135,13 +144,20 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
         </div>}
         {(section === 'writing' || section === 'translation') && <div className="cet-ready-split">
           <section className="cet-ready-material" aria-label="写译题目"><h3>{section === 'writing' ? '写作任务' : '翻译原文'}</h3><div lang={section === 'writing' ? 'en' : 'zh-CN'} className="cet-ready-passage">{paper[section].prompt}</div><details className="cet-ready-reference"><summary>{section === 'writing' ? '查看参考范文与思路' : '查看参考译文'}</summary><p lang="en" className="cet-ready-passage">{paper[section].reference || '高校资料未提供本题参考文本。可从内容、结构、词汇和语法四个方面检查自己的表达。'}</p></details></section>
-          <section className="cet-ready-questions"><label className="cet-paper-field">{section === 'writing' ? '我的写作草稿' : '我的翻译草稿'}<textarea className="pixel-input cet-ready-editor" lang="en" value={section === 'writing' ? draft.writingDraft : draft.translationDraft} disabled={busy} onChange={(event) => update(section === 'writing' ? { writingDraft: event.target.value } : { translationDraft: event.target.value })} placeholder="在这里完成，草稿会自动保存…" /></label><p className="text-dim">{(section === 'writing' ? draft.writingDraft : draft.translationDraft).trim().split(/\s+/).filter(Boolean).length} 个空白分隔词 · 写译对照参考自行修订</p></section>
+          <section className="cet-ready-questions"><div className="cet-paper-field"><label htmlFor="ready-output-draft">{section === 'writing' ? '我的写作草稿' : '我的翻译草稿'}</label><textarea id="ready-output-draft" className="pixel-input cet-ready-editor" lang="en" value={section === 'writing' ? draft.writingDraft : draft.translationDraft} disabled={busy} onChange={(event) => update(section === 'writing' ? { writingDraft: event.target.value } : { translationDraft: event.target.value })} placeholder="在这里完成，草稿会自动保存…" /></div><p className="text-dim">{englishWordCount(section === 'writing' ? draft.writingDraft : draft.translationDraft)} 个英文词 · 以题干中的字数要求为准</p><details className="cet-ready-reference"><summary>完成后逐项自查</summary><ul className="list-disc pl-5"><li>是否覆盖题干要求的全部要点？</li><li>每段是否有明确主旨，前后衔接是否自然？</li><li>检查时态、主谓一致、冠词和单复数。</li><li>对照参考稿，记录一处修改及其原因。</li></ul><p className="text-dim">参考稿只是表达示例。本应用不自动评分，建议请教师或同伴反馈。</p></details></section>
         </div>}
         {section === 'review' && <section className="cet-ready-review">
           <h3>{scopeName}复盘</h3>
           <p className="text-dim">核对已作答的客观题；未答题单列。以下为高校整理版参考结果，不换算 710 分。</p>
           <div className="cet-paper-results"><Result name="首次核对" submission={submissions.first} scope={scope} /><Result name="最近核对" submission={latestSubmission} scope={scope} /></div>
-          {latestSubmission && <><label className="cet-ready-solutions"><input type="checkbox" checked={showSolutions} onChange={(event) => setShowSolutions(event.target.checked)} /> 订正时显示参考答案</label><h4>点击题号回到题目</h4><div className="cet-ready-overview">{questions.map((q) => { const answer = latestSubmission.answers[q.number - 1]; const state = !answer ? '未答' : answer === latestSubmission.answerKey[q.number - 1] ? '正确' : '待订正'; return <button type="button" key={q.number} data-result={state} aria-label={`第 ${q.number} 题，${state}`} onClick={() => jump(q.number)}>{q.number}<span>{state}</span></button> })}</div></>}
+          <p className="text-dim">订正后的结果用于复盘；首次表现单独保留。先回到原文或录音找到证据，再显示答案。</p>
+          <div className="cet-ready-tools" role="group" aria-label="答题与订正导航">
+            <PixelButton disabled={!nextUnanswered} onClick={() => { if (nextUnanswered) jump(nextUnanswered) }}>继续未答题{nextUnanswered ? ` · ${nextUnanswered}` : ''}</PixelButton>
+            <PixelButton disabled={!latestResult.wrong.length} onClick={() => { setShowSolutions(false); if (latestResult.wrong[0]) jump(latestResult.wrong[0]) }}>先订正第一个错题</PixelButton>
+          </div>
+          {latestSubmission && <div className="cet-ready-tools" role="group" aria-label="筛选复盘题目">{([{ id: 'all', label: `全部 ${questions.length}` }, { id: 'wrong', label: `待订正 ${latestResult.wrong.length}` }, { id: 'unanswered', label: `未答 ${latestResult.unanswered}` }] as const).map(item => <PixelButton key={item.id} aria-pressed={reviewFilter === item.id} variant={reviewFilter === item.id ? 'primary' : 'default'} onClick={() => setReviewFilter(item.id)}>{item.label}</PixelButton>)}</div>}
+          {latestSubmission && visibleQuestions.length === 0 && <p role="status" className="text-dim">{reviewFilter === 'wrong' ? '这轮已核对的题目没有待订正项。可以补答未答题，或回看证据句。' : '这轮没有未答题，可以检查错题与笔记。'}</p>}
+          {latestSubmission && <><label className="cet-ready-solutions"><input type="checkbox" checked={showSolutions} onChange={(event) => setShowSolutions(event.target.checked)} /> 订正时显示参考答案</label><h4>点击题号回到题目</h4><div className="cet-ready-overview">{visibleQuestions.map((q) => { const answer = latestSubmission.answers[q.number - 1]; const state = !answer ? '未答' : answer === latestSubmission.answerKey[q.number - 1] ? '正确' : '待订正'; return <button type="button" key={q.number} data-result={state} aria-label={`第 ${q.number} 题，${state}`} onClick={() => jump(q.number)}>{q.number}<span>{state}</span></button> })}</div></>}
           <label className="cet-paper-field">复盘笔记<textarea className="pixel-input" rows={5} value={draft.notes} disabled={busy} onChange={(event) => update({ notes: event.target.value })} placeholder="记录证据句、听漏的表达，以及写译中想改进的地方…" /></label>
           <details className="cet-ready-reference"><summary>本套资料与离线使用</summary><p>{paper.provider} · 整理版第 1 套 · 核对日期 {paper.checkedAt}。套号沿用高校资料，参考答案和范文用于学习核对。</p><p>题目与录音均由本站提供。缓存后可在此设备离线练习；浏览器清理缓存后需重新下载。</p><PixelButton disabled={offline === 'loading' || offline === 'ready'} onClick={() => void downloadPaper()}>{offline === 'loading' ? `缓存中 ${downloadProgress}%` : offline === 'ready' ? '本套题目与录音已缓存' : `缓存本套题目与录音 · ${(paper.assets.audio.bytes / 1024 / 1024).toFixed(1)} MB`}</PixelButton>{downloadError && <p role="alert" className="text-fail">{downloadError}</p>}</details>
         </section>}
@@ -149,7 +165,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
       {showSubmit && <div className="cet-ready-submit readable" role="region" aria-label="确认核对"><p>{scopeName}已答 {selected} 题，未答 {numbers.length - selected} 题。核对后可继续补答和订正，首次记录会保留。</p><div className="cet-ready-tools"><PixelButton disabled={busy} variant="primary" onClick={() => { void action(async () => { const saved = await submitCetPaperStudy(study.id, scope); setSection('review'); setShowSubmit(false); return saved }) }}>确认核对 {selected} 题</PixelButton><PixelButton disabled={busy} onClick={() => setShowSubmit(false)}>继续作答</PixelButton></div></div>}
       <footer className="cet-paper-footer cet-ready-footer">
         <div className="readable cet-paper-save-status"><p role="status" className={saveState === 'error' ? 'text-fail' : 'text-dim'}>{statusText[saveState]} · {selected}/{numbers.length}</p>{error && <p role="alert" className="text-fail">{error}</p>}</div>
-        {saveState === 'error' && <PixelButton disabled={busy} onClick={() => void action(async () => undefined)}>重试保存</PixelButton>}
+        {conflict ? <div className="cet-ready-tools" role="group" aria-label="处理草稿冲突"><PixelButton disabled={busy} onClick={() => resolveConflict(true)}>保留本页修改并保存</PixelButton><PixelButton disabled={busy} onClick={() => resolveConflict(false)}>放弃本页修改，载入另一页</PixelButton></div> : saveState === 'error' && <PixelButton disabled={busy} onClick={() => void action(async () => undefined)}>重试保存</PixelButton>}
         <PixelButton disabled={busy} onClick={() => setSection(section === 'review' ? firstSection : 'review')}>{section === 'review' ? '继续答题' : '复盘与缓存'}</PixelButton>
         <PixelButton variant="primary" disabled={busy || selected === 0} onClick={() => setShowSubmit(!showSubmit)}>{busy ? '正在保存…' : submissions.first ? '核对订正' : '提交核对'}</PixelButton>
       </footer>
@@ -158,7 +174,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
 }
 
 function Question({ question: q, answers, choose, disabled, solutions, compact = false }: { question: CetReadyQuestion; answers: string[]; choose: (number: number, answer: string) => void; disabled: boolean; solutions: boolean; compact?: boolean }) {
-  return <fieldset id={`ready-q-${q.number}`} className="cet-ready-question" disabled={disabled}><legend><span className="text-gold">{q.number}.</span> <span lang="en">{q.prompt || '听录音选择正确答案'}</span></legend><div className={compact ? 'cet-ready-options cet-ready-options-compact' : 'cet-ready-options'}>{q.options.map((o) => <label key={o.key} data-selected={answers[q.number - 1] === o.key} data-correct={solutions && o.key === q.answer}><input type="radio" name={`ready-q-${q.number}`} value={o.key} checked={answers[q.number - 1] === o.key} onChange={() => choose(q.number, o.key)} /><b>{o.key}</b><span lang={compact ? 'zh-CN' : 'en'}>{o.text}</span></label>)}</div><button type="button" className="cet-ready-clear text-dim" disabled={disabled || !answers[q.number - 1]} onClick={() => choose(q.number, '')}>清除本题选择</button>{solutions && <p className="cet-ready-solution text-gold">参考答案：{q.answer}{q.explanation ? ` · ${q.explanation}` : ''}</p>}</fieldset>
+  return <fieldset id={`ready-q-${q.number}`} className="cet-ready-question" disabled={disabled}><legend><span className="text-gold">{q.number}.</span> <span lang="en">{q.prompt || '听录音选择正确答案'}</span></legend><div className={compact ? 'cet-ready-options cet-ready-options-compact' : 'cet-ready-options'}>{q.options.map((o) => <label key={o.key} data-selected={answers[q.number - 1] === o.key} data-correct={solutions && o.key === q.answer}><input type="radio" name={`ready-q-${q.number}`} value={o.key} checked={answers[q.number - 1] === o.key} onChange={() => choose(q.number, o.key)} /><b>{o.key}</b><span lang={compact ? 'zh-CN' : 'en'}>{o.text}</span></label>)}</div><button type="button" className="cet-ready-clear text-dim" disabled={disabled || !answers[q.number - 1]} onClick={() => choose(q.number, '')}>清除本题选择</button>{solutions && <div className="cet-ready-solution"><p className="text-dim">你的选择：{answers[q.number - 1] || '未答'}{answers[q.number - 1] ? ` · ${q.options.find(o => o.key === answers[q.number - 1])?.text ?? ''}` : ''}</p><p className="text-gold">参考答案：{q.answer} · {q.options.find(o => o.key === q.answer)?.text}</p><p className="text-dim">{q.explanation || '这套整理版尚未附逐题解析，请结合原文或录音复核证据，并记下错因。'}</p></div>}</fieldset>
 }
 
 function Result({ name, submission, scope }: { name: string; submission?: CetPaperSubmission; scope: CetPaperScope }) {

@@ -1,3 +1,4 @@
+import { readPreference, rememberPreference } from './preferences'
 import { db } from '../db/database'
 import type { BookId, Word } from '../types/model'
 import { TASTER_BOOK_ID, TASTER_WORDS } from '../data/taster'
@@ -75,7 +76,7 @@ const IMPORTED_KEY = 'wq:imported-units'
 
 export function importedUnits(): Record<string, number[]> {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(IMPORTED_KEY) ?? '{}')
+    const parsed: unknown = JSON.parse(readPreference(IMPORTED_KEY) ?? '{}')
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     const map: Record<string, number[]> = {}
     for (const book of BOOKS) {
@@ -99,13 +100,13 @@ function markUnitImported(bookId: BookId, unitId: number) {
   const list = new Set(map[bookId] ?? [])
   list.add(unitId)
   map[bookId] = [...list].sort((a, b) => a - b)
-  localStorage.setItem(IMPORTED_KEY, JSON.stringify(map))
+  rememberPreference(IMPORTED_KEY, JSON.stringify(map))
 }
 
 function markCompleteUnits(bookId: BookId, unitIds: number[]) {
   const map = importedUnits()
   map[bookId] = [...unitIds].sort((a, b) => a - b)
-  localStorage.setItem(IMPORTED_KEY, JSON.stringify(map))
+  rememberPreference(IMPORTED_KEY, JSON.stringify(map))
 }
 
 /** 备份不会依赖另一台设备的 localStorage；从词条补回已下载书/单元清单。 */
@@ -225,7 +226,7 @@ const BOOKS_REV = '4'
  * 离线或下载失败时不改已有数据。
  */
 export async function syncBookRevision(): Promise<BookId[]> {
-  if (localStorage.getItem(BOOKS_REV_KEY) === BOOKS_REV) return []
+  if (readPreference(BOOKS_REV_KEY) === BOOKS_REV) return []
   const map = await downloadedUnitMap()
   const downloaded = (Object.entries(map) as [BookId, number[]][]).filter(
     ([, unitIds]) => unitIds && unitIds.length > 0,
@@ -247,7 +248,7 @@ export async function syncBookRevision(): Promise<BookId[]> {
     }
   }
   // 全部书都刷新成功（或本来就没下载任何词书）才记修订号，否则下次重试
-  if (refreshed.length === downloaded.length) localStorage.setItem(BOOKS_REV_KEY, BOOKS_REV)
+  if (refreshed.length === downloaded.length) rememberPreference(BOOKS_REV_KEY, BOOKS_REV)
   return refreshed
 }
 

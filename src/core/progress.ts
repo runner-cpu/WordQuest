@@ -1,3 +1,4 @@
+import { readPreference, rememberPreference } from './preferences'
 import { db, dateKeyOffset, todayKey } from '../db/database'
 import { COIN_RULES, FREEZE_RULES } from './game'
 import { bumpDaily, ensureProfile, patchProfile } from './profile'
@@ -121,8 +122,8 @@ export async function buildAchievementCtx(): Promise<AchievementCtx> {
 }
 
 export function recordCombo(n: number) {
-  const cur = Number(localStorage.getItem('wq:max-combo') ?? 0)
-  if (n > cur) localStorage.setItem('wq:max-combo', String(n))
+  const cur = Number(readPreference('wq:max-combo') ?? 0)
+  if (n > cur) rememberPreference('wq:max-combo', String(n))
 }
 
 /** 检查并解锁成就，返回本次新解锁的成就 */
