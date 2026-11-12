@@ -14,6 +14,7 @@ import { useUi } from '../state/ui'
 import { ensureProfile } from '../core/profile'
 import { checkAchievements } from '../core/progress'
 import { CetDraftConflict } from '../core/cetPapers'
+import { CetListeningPlayer } from './CetListeningPlayer'
 import './cetPaperWorkspace.css'
 import './cetReadyWorkspace.css'
 
@@ -38,14 +39,12 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
   const [noteNotice, setNoteNotice] = useState('')
   const [rewardResult, setRewardResult] = useState<Awaited<ReturnType<typeof submitRewardedCetPaperStudy>>['rewards']>()
   const [evidenceConflict, setEvidenceConflict] = useState<{ number: number; local: string; remote: string }>()
-  const [audioError, setAudioError] = useState('')
   const [offline, setOffline] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [downloadError, setDownloadError] = useState('')
   const [showSubmit, setShowSubmit] = useState(false)
   const [reviewFilter, setReviewFilter] = useState<'all' | 'wrong' | 'unanswered'>('all')
   const download = useRef<AbortController>()
-  const audio = useRef<HTMLAudioElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const close = useRef<() => void>(() => undefined)
@@ -75,8 +74,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
     ]).then(([response, json]) => {
       if (!cancelled && response?.status === 200 && Number(response.headers.get('Content-Length')) === paper.assets.audio.bytes && json?.status === 200) setOffline('ready')
     }).catch(() => undefined)
-    const player = audio.current
-    return () => { cancelled = true; player?.pause(); download.current?.abort(); element.close(); document.body.style.overflow = overflow; opener?.focus() }
+    return () => { cancelled = true; download.current?.abort(); element.close(); document.body.style.overflow = overflow; opener?.focus() }
   }, [])
 
   useEffect(() => { body.current?.scrollTo({ top: 0 }); setShowSubmit(false) }, [section, group, reading])
@@ -104,14 +102,6 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
     } catch (cause) {
       if (!controller.signal.aborted) { setOffline('error'); setDownloadError(cause instanceof Error ? cause.message : '缓存未完成，请重试') }
     }
-  }
-
-  function seekGroup() {
-    const player = audio.current
-    const start = paper.listening[group].startSeconds
-    if (!player || start === undefined) return
-    try { player.currentTime = start; void player.play().catch(() => setAudioError('点击播放器的播放键即可开始听力')) }
-    catch { setAudioError('录音正在载入，请稍后再次播放本段') }
   }
 
   function analysisFor(number: number) {
@@ -155,11 +145,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
       {sections.length > 1 && <nav className="cet-ready-sections" aria-label="真题题型">
         {sections.map((item) => <button type="button" key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><span>{item.name}</span><span className="readable">{item.range}</span></button>)}
       </nav>}
-      {scope !== 'reading' && <div className={`cet-ready-player readable ${section !== 'listening' ? 'cet-ready-player-secondary' : ''}`}>
-        <span className="text-dim">本套听力</span>
-        <audio ref={audio} controls preload="metadata" src={audioUrl} onError={() => setAudioError('录音加载未完成，请检查网络并重试')} onCanPlay={() => setAudioError('')} aria-label="本套真题听力播放器" />
-        {audioError && <div role="alert" className="cet-ready-audio-error text-fail">{audioError}<button type="button" onClick={() => { setAudioError(''); audio.current?.load() }}>重试录音</button></div>}
-      </div>}
+      {scope !== 'reading' && <CetListeningPlayer src={audioUrl} group={activeListening} active={section === 'listening'} />}
       <div ref={body} className="cet-ready-body readable" aria-label="真题材料与作答">
         {noteNotice && <p role="status" className="cet-evidence-notice text-pass">{noteNotice}</p>}
         {evidenceConflict && <section role="region" aria-label="订正依据冲突" className="cet-evidence-conflict">
@@ -170,7 +156,6 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
         </section>}
         {section === 'listening' && <section className="cet-ready-listening">
           <div className="cet-ready-tools"><label className="text-dim">听力材料<select className="pixel-input" value={group} onChange={(event) => setGroup(Number(event.target.value))}>{paper.listening.map((g, i) => <option key={i} value={i}>{g.title} · {g.questions[0].number}–{g.questions[g.questions.length - 1].number}</option>)}</select></label>
-            {activeListening.startSeconds !== undefined && <PixelButton onClick={seekGroup} icon="speaker">{activeListening.startSeconds === 0 ? '从头播放' : '播放本段'}</PixelButton>}
           </div>
           <p className="text-dim cet-ready-hint">听录音，直接选择下方选项。可用播放器重听和拖动进度。</p>
           {activeListening.questions.map((q) => <Question key={q.number} question={q} {...qProps} />)}

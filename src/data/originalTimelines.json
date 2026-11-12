@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "unit": "seconds",
+  "note": "Verified manual sentence boundaries, keyed by the content-based audio/original/*.mp3 path. Keep overrides empty until a reviewer listens to the shipped recording. The player uses its loaded media duration for approximate word-weighted boundaries otherwise; no whole-recording duration is authored here. See docs/listening-location-todo.md for the editable entry format.",
+  "overrides": {}
+}

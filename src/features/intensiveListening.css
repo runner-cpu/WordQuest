@@ -1,0 +1,29 @@
+.intensive-listening { min-width: 0; }
+.intensive-main-controls, .intensive-rates, .intensive-sentence-controls, .intensive-ab-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.intensive-listening .pixel-btn { min-height: 44px; }
+.intensive-rates { gap: 4px; }
+.intensive-rates .pixel-btn { min-width: 52px; }
+.intensive-status, .intensive-help, .intensive-reference > p { font-size: 15px; line-height: 1.7; margin-top: 12px; }
+.intensive-progress { display: grid; gap: 4px; margin-top: 12px; }
+.intensive-progress label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.intensive-progress input { width: 100%; min-width: 0; min-height: 44px; accent-color: var(--wq-gold); cursor: pointer; }
+.intensive-progress input:disabled { cursor: default; }
+.intensive-sentence-controls { margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--wq-edge); }
+.intensive-ab-controls { margin-top: 8px; }
+.intensive-error { display: grid; justify-items: start; gap: 8px; margin-top: 12px; font-size: 16px; line-height: 1.7; }
+.intensive-reference { margin-top: 12px; border-top: 2px solid var(--wq-edge); }
+.intensive-reference > summary { cursor: pointer; min-height: 44px; padding-block: 12px; color: var(--wq-gold); }
+.intensive-reference ol { margin-top: 12px; }
+.intensive-reference li { border-top: 1px solid var(--wq-edge); }
+.intensive-reference li.is-current { border-left: 4px solid var(--wq-gold); }
+.intensive-reference li > button { display: grid; width: 100%; min-height: 44px; text-align: left; gap: 4px; padding: 12px; overflow-wrap: anywhere; }
+.intensive-reference li > button > .readable { font-size: 17px; line-height: 1.75; }
+.intensive-reference li > button:hover { background: var(--wq-panel-2); }
+@media (max-width: 420px) {
+  .intensive-main-controls { align-items: stretch; }
+  .intensive-main-controls > .pixel-btn { width: 100%; }
+  .intensive-rates { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .intensive-rates .pixel-btn { min-width: 0; padding-inline: 6px; }
+  .intensive-sentence-controls > .pixel-btn, .intensive-ab-controls > .pixel-btn { flex-grow: 1; }
+  .intensive-sentence-controls > span { flex: 1; text-align: center; }
+}

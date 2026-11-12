@@ -4,16 +4,16 @@ import { awardRewards } from '../core/profile'
 import { Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
 import { useUi } from '../state/ui'
-import { isMuted, setMuted, speak, speechErrorMessage, stopSpeaking } from '../core/audio'
-import { originalAudioPath } from '../core/originalAudio'
 import { checkAchievements } from '../core/progress'
 import { BUILTIN_MATERIALS } from '../data/listening'
 import { builtinSetsForLevel, mergeSetPack } from '../data/examSets'
 import { buildListenQuestion, checkOrder, maskTarget } from '../core/listening'
 import { ExamPlayer } from './ExamPlayer'
+import { IntensiveListeningPlayer, type IntensiveListeningHandle } from './IntensiveListeningPlayer'
 import { CetPaperLibrary } from './CetPaperLibrary'
 import type { ExamPack } from '../core/examImport'
 import './listening.css'
+import './intensiveListening.css'
 
 /**
  * 听力模块。
@@ -93,19 +93,15 @@ function Player({
   onExit: () => void
   onAchievement: (name: string) => void
 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const intensive = useRef<IntensiveListeningHandle>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [idx, setIdx] = useState(0)
-  const [rate, setRate] = useState(1)
   const [checked, setChecked] = useState(false)
   const [correct, setCorrect] = useState(false)
   const [results, setResults] = useState({ ok: 0, total: 0 })
   const [allowDictation, setAllowDictation] = useState(false)
-  const [playing, setPlaying] = useState(false)
-  const [starting, setStarting] = useState(false)
-  const [speakError, setSpeakError] = useState<string | null>(null)
+  const [mediaError, setMediaError] = useState<string | null>(null)
   const startedRef = useRef(Date.now())
-  const playback = useRef(0)
 
   const [picked, setPicked] = useState<string | null>(null)
   const [orderPicked, setOrderPicked] = useState<number[]>([])
@@ -118,19 +114,12 @@ function Player({
       const row = await db.media.get(material.id)
       const blob = row?.blob ?? material.audioBlob
       if (blob && !disposed) { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl) }
-    })().catch(() => { if (!disposed) setSpeakError('本机录音读取未完成，请返回后重试。') })
+    })().catch(() => { if (!disposed) setMediaError('本机录音读取未完成，请返回后重试。') })
     return () => {
       disposed = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [material.id, material.audioBlob])
-
-  useEffect(() => {
-    const player = audioRef.current
-    playback.current++
-    setPlaying(false); setStarting(false)
-    return () => { playback.current++; stopSpeaking(); player?.pause() }
-  }, [idx, material.id])
 
   const sentence = material.sentences[idx]
 
@@ -162,44 +151,8 @@ function Player({
     setPicked(null)
     setOrderPicked([])
     setTyped('')
-    setSpeakError(null)
     startedRef.current = Date.now()
   }, [idx, allowDictation])
-
-  async function play() {
-    if (!sentence) return
-    if (playing || starting) { playback.current++; stopSpeaking(); audioRef.current?.pause(); setPlaying(false); setStarting(false); return }
-    const attempt = ++playback.current
-    setSpeakError(null)
-    setStarting(true)
-    if (url && audioRef.current) {
-      const el = audioRef.current
-      el.currentTime = sentence.start
-      el.playbackRate = rate
-      try {
-        await el.play()
-        if (attempt === playback.current) setPlaying(true)
-      } catch {
-        if (attempt === playback.current) { setSpeakError('音频播放未能开始，请再点一次播放。'); setPlaying(false) }
-      } finally {
-        if (attempt === playback.current) setStarting(false)
-      }
-      return
-    }
-    const res = await speak(sentence.text, {
-      rate,
-      src: originalAudioPath(sentence.text),
-      onStart: () => { if (attempt === playback.current) setPlaying(true) },
-      onEnd: () => { if (attempt === playback.current) setPlaying(false) },
-      onError: (reason) => { if (attempt === playback.current) { setPlaying(false); setSpeakError(speechErrorMessage(reason)) } },
-    })
-    if (attempt !== playback.current) return
-    setStarting(false)
-    if (!res.ok && res.reason !== 'cancelled') {
-      setPlaying(false)
-      setSpeakError(speechErrorMessage(res.reason))
-    }
-  }
 
   function judge() {
     if (!question) return
@@ -260,33 +213,8 @@ function Player({
 
       <div className="flex-1 overflow-y-auto p-3">
         <div className="mx-auto max-w-2xl space-y-3">
-          <Panel>
-            <div className="flex flex-wrap items-center gap-2">
-              <PixelButton variant="primary" icon="speaker" onClick={() => void play()}>
-                {starting ? '取消载入' : playing ? '停止播放' : '播放句子'}
-              </PixelButton>
-              <div className="flex gap-1">
-                {[0.7, 0.85, 1, 1.2].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRate(r)}
-                    aria-pressed={rate === r}
-                    className={`pixel-btn pixel-btn-sm ${rate === r ? 'pixel-btn-primary' : ''}`}
-                  >
-                    {r}×
-                  </button>
-                ))}
-              </div>
-            </div>
-            {url ? (
-              <audio ref={audioRef} src={url} preload="metadata" className="hidden" onEnded={() => setPlaying(false)} onTimeUpdate={() => { const player = audioRef.current; if (player && sentence.end > sentence.start && player.currentTime >= sentence.end) { player.pause(); setPlaying(false) } }} onError={() => { setPlaying(false); setSpeakError('本机录音未能播放，请重新导入后重试。') }} />
-            ) : (
-              <p className="readable mt-2 text-px12 text-dim">
-                内置英语合成录音 · 可调速重听
-              </p>
-            )}
-            {speakError && <div className="readable mt-2" role="alert"><p className="text-fail">{speakError}</p>{isMuted() && <PixelButton size="sm" onClick={() => { setMuted(false); void play() }}>开启声音并播放</PixelButton>}</div>}
-          </Panel>
+          <IntensiveListeningPlayer ref={intensive} contextKey={`${material.id}:${idx}`} text={sentence.text} sourceUrl={url ?? undefined} range={url && sentence.end > sentence.start ? { start: sentence.start, end: sentence.end } : undefined} playLabel="播放句子" previous={() => setIdx((current) => Math.max(0, current - 1))} next={next} previousDisabled={idx === 0} nextDisabled={idx + 1 >= material.sentences.length} sentenceLabel={`${idx + 1}/${material.sentences.length} 句`} />
+          {mediaError && <p className="readable text-fail" role="alert">{mediaError}</p>}
 
           <Panel>
             <SectionHead right={KIND_LABEL[question.kind]}>{KIND_HINT[question.kind]}</SectionHead>
@@ -438,7 +366,7 @@ function Player({
                 <p className="mt-2 text-px12 text-gold">被挖掉的词：{question.target}</p>
               )}
               <div className="mt-2 flex items-center gap-2">
-                <PixelButton size="sm" icon="speaker" onClick={() => void play()}>
+                <PixelButton size="sm" icon="speaker" onClick={() => intensive.current?.playSentence()}>
                   再听一遍
                 </PixelButton>
                 <span className="ml-auto text-px12 text-dim tnum">

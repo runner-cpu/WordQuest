@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { awardRewards } from '../core/profile'
 import { Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
-import { isMuted, setMuted, speakLong, speechErrorMessage, stopSpeaking } from '../core/audio'
-import { originalAudioPath } from '../core/originalAudio'
 import { checkAchievements } from '../core/progress'
 import type { ExamPack } from '../core/examImport'
+import { IntensiveListeningPlayer, type IntensiveListeningHandle } from './IntensiveListeningPlayer'
 
 /**
  * 听力理解练习播放器。
@@ -28,16 +27,12 @@ export function ExamPlayer({
   const [round, setRound] = useState(0)
   const [pendingRewards, setPendingRewards] = useState(0)
   const [rewardError, setRewardError] = useState<string | null>(null)
-  const [rate, setRate] = useState(1)
-  const [playing, setPlaying] = useState(false)
-  const [starting, setStarting] = useState(false)
-  const [speakError, setSpeakError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const startedRef = useRef(Date.now())
   const submitLock = useRef(false)
   const advanceLock = useRef(false)
   const pendingRewardCount = useRef(0)
-  const playback = useRef(0)
+  const intensive = useRef<IntensiveListeningHandle>(null)
 
   const item = pack.items[idx]
   const score = answers.reduce((total, answer, index) => ({
@@ -45,37 +40,9 @@ export function ExamPlayer({
     total: total.total + (answer !== null ? 1 : 0),
   }), { ok: 0, total: 0 })
 
-  async function playStem(text: string) {
-    if (playing || starting) { playback.current++; stopSpeaking(); setPlaying(false); setStarting(false); return }
-    const attempt = ++playback.current
-    setSpeakError(null)
-    setStarting(true)
-    const res = await speakLong(text, {
-      rate,
-      src: originalAudioPath(text),
-      onStart: () => { if (attempt === playback.current) setPlaying(true) },
-      onEnd: () => { if (attempt === playback.current) setPlaying(false) },
-      onError: (reason) => { if (attempt === playback.current) { setPlaying(false); setSpeakError(speechErrorMessage(reason)) } },
-    })
-    if (attempt !== playback.current) return
-    setStarting(false)
-    if (!res.ok && res.reason !== 'cancelled') {
-      setPlaying(false)
-      setSpeakError(speechErrorMessage(res.reason))
-    }
-  }
-
-  /** 同段材料保留播放进度；换段、完成或退出时停止。 */
-  useEffect(() => {
-    playback.current++
-    setPlaying(false); setStarting(false)
-    return () => { playback.current++; stopSpeaking() }
-  }, [item?.group, round, done])
-
   useEffect(() => {
     setChecked(false)
     setPicked(null)
-    setSpeakError(null)
     submitLock.current = false
     advanceLock.current = false
     startedRef.current = Date.now()
@@ -197,28 +164,7 @@ export function ExamPlayer({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="mx-auto max-w-2xl space-y-3">
-          <Panel>
-            <div className="flex flex-wrap items-center gap-2">
-              <PixelButton variant="primary" icon="speaker" onClick={() => void playStem(item.stem)}>
-                {starting ? '取消载入' : playing ? '停止播放' : '播放原文'}
-              </PixelButton>
-              <div className="flex gap-1">
-                {[0.85, 1, 1.15].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRate(r)}
-                    aria-pressed={rate === r}
-                    className={`pixel-btn pixel-btn-sm ${rate === r ? 'pixel-btn-primary' : ''}`}
-                  >
-                    {r}×
-                  </button>
-                ))}
-              </div>
-              <span className="ml-auto text-px12 text-dim">{pack.sectionName}</span>
-            </div>
-            <p className="readable mt-2 text-px12 text-dim">内置英语合成录音 · 可调速重听</p>
-            {speakError && <div className="readable mt-2" role="alert"><p className="text-fail">{speakError}</p>{isMuted() && <PixelButton size="sm" onClick={() => { setMuted(false); void playStem(item.stem) }}>开启声音并播放</PixelButton>}</div>}
-          </Panel>
+          <IntensiveListeningPlayer ref={intensive} contextKey={`${round}:${item.group}`} text={item.stem || pack.items.find((other) => other.group === item.group && other.stem)?.stem || ''} />
 
           <Panel>
             <SectionHead>第 {idx + 1} 题</SectionHead>
@@ -279,7 +225,7 @@ export function ExamPlayer({
               </div>
               <p className="readable text-px12 leading-relaxed text-dim">{item.explain}</p>
               <div className="mt-2 flex items-center gap-2">
-                <PixelButton size="sm" icon="speaker" onClick={() => void playStem(item.stem)}>
+                <PixelButton size="sm" icon="speaker" onClick={() => intensive.current?.playWhole()}>
                   再听原文
                 </PixelButton>
                 <span className="ml-auto text-px12 text-dim tnum">

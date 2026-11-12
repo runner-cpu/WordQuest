@@ -62,3 +62,30 @@
 
 ### 对现有基线的影响
 原单测与 6 项原浏览器流程继续通过。自带资料的原提交 API 保持原有不发奖励行为；奖励入口只接受通过版本及内容散列验证的站内卷。
+
+## 批次 C 完成报告
+
+### 改动摘要
+- 原创短练与句子练习复用精听播放器：逐句、单句循环、手动 A/B、0.75/1/1.25/1.5 倍速、空格和左右键；实际起播后才显示播放中，载入超时可重试，切材料与退出停止。
+- 独立句子优先直接使用内置 MP3；全文以实际媒体时长估算边界，界面明确“时间轴为机器估算/待校对”。参考原文默认折叠，标明不是考试字幕。
+- 真题完整区间支持题组循环；无定位仍有完整录音与手动 A/B。核对发现 60 组起止完整、2 组仅起点、14 组无起点，未编造后两类终点。
+- 静态时间轴索引提供人工补录格式，只有 verified:true 且文本/时长一致的覆盖才采用。新增数据随脚本缓存离线；原完整 MP3 与资源散列未修改。
+
+### 文件清单
+- 新增：src/core/intensiveListening.ts、src/data/originalTimelines.json、src/features/IntensiveListeningPlayer.tsx、src/features/intensiveListening.css、src/features/CetListeningPlayer.tsx。
+- 修改：src/features/ExamPlayer.tsx、src/features/ListeningPage.tsx、src/features/CetReadyWorkspace.tsx、src/features/cetReadyWorkspace.css。
+- 测试与清单：test/intensiveListening.test.ts、e2e/batch-c.spec.ts、docs/listening-location-todo.md。
+
+### 数据结构与迁移
+无数据库变更，继续 schema 8。手动 A/B 仅在本次会话生效；静态 JSON 的人工时间轴字段独立于原音频。
+
+### 测试
+- 新增 9 项单测，合计 185/185 通过；覆盖切句、边界、倍速、循环和人工覆盖校验。
+- 新增 2 项浏览器流程，合计 14/14 通过；覆盖真实起播、逐句循环、A/B、快捷键、真题循环和无定位提示。原离线真实重听流程继续通过。
+- typecheck、build 通过。CSS 置于懒加载页入口，保留原组件服务端渲染测试。
+
+### 已知边界与 TODO
+人工核验的逐句时间轴尚未补录。原指令“62 组起始定位”不能等同于“62 组完整区间”；实际 2 组只有起点，已提供手动区间且逐项登记来源与版本。
+
+### 对现有基线的影响
+保留全部原测试与原音频字节，无新增依赖或用户记录清理。

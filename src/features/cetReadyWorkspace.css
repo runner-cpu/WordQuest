@@ -135,3 +135,6 @@
   .cet-ready-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .cet-ready-material { border-right: 1px solid var(--wq-edge); border-bottom: 0; min-height: 0; }
 }
+
+.cet-ready-group-controls { flex: 1 0 100%; min-width: 0; }
+.cet-ready-group-controls p { margin: .4rem 0; }
