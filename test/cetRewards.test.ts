@@ -226,7 +226,7 @@ test('each reward storage failure rolls back snapshots, receipts, balances and d
 })
 
 test('reward progress validation and merge keep first-state and paid receipt unions', () => {
-  assert.equal(SCHEMA_VERSION, 9)
+  assert.equal(SCHEMA_VERSION, 10)
   const first = { sourceId: entry.sourceId, paperRevision: entry.revision, number: 1, first: 'wrong' as const, firstSubmittedAt: 10,
     last: 'wrong' as const, lastSubmittedAt: 10, paid: {} }
   const later = { ...first, firstSubmittedAt: 20, last: 'correct' as const, lastSubmittedAt: 30, paid: { correction: 30 } }

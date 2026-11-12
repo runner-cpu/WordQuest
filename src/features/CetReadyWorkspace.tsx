@@ -5,8 +5,8 @@ import type { CetPaperScope, CetPaperStudy, CetPaperSubmission } from '../types/
 import type { CetReadyPaper, CetReadyQuestion } from '../types/cetReadyPaper'
 import { PixelButton } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
-import { englishWordCount } from '../core/learningReport'
 import { useCetPaperDraft } from './useCetPaperDraft'
+import { OutputRevisionEditor } from './OutputRevisionEditor'
 import { appendEvidenceNote, getCetAnalysis, validateAnalysisForPaper } from '../core/cetExplanations'
 import type { CetQuestionAnalysis } from '../types/cetReadyPaper'
 import { CetQuestionAnalysisPanel } from './CetQuestionAnalysis'
@@ -176,8 +176,8 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
           <section className="cet-ready-questions" aria-label="仔细阅读答题区">{activeReading.questions.map((q) => <Question key={q.number} question={q} {...qProps} />)}</section>
         </div>}
         {(section === 'writing' || section === 'translation') && <div className="cet-ready-split">
-          <section className="cet-ready-material" aria-label="写译题目"><h3>{section === 'writing' ? '写作任务' : '翻译原文'}</h3><div lang={section === 'writing' ? 'en' : 'zh-CN'} className="cet-ready-passage">{paper[section].prompt}</div><details className="cet-ready-reference"><summary>{section === 'writing' ? '查看参考范文与思路' : '查看参考译文'}</summary><p lang="en" className="cet-ready-passage">{paper[section].reference || '高校资料未提供本题参考文本。可从内容、结构、词汇和语法四个方面检查自己的表达。'}</p></details></section>
-          <section className="cet-ready-questions"><div className="cet-paper-field"><label htmlFor="ready-output-draft">{section === 'writing' ? '我的写作草稿' : '我的翻译草稿'}</label><textarea id="ready-output-draft" className="pixel-input cet-ready-editor" lang="en" value={section === 'writing' ? draft.writingDraft : draft.translationDraft} disabled={busy} onChange={(event) => update(section === 'writing' ? { writingDraft: event.target.value } : { translationDraft: event.target.value })} placeholder="在这里完成，草稿会自动保存…" /></div><p className="text-dim">{englishWordCount(section === 'writing' ? draft.writingDraft : draft.translationDraft)} 个英文词 · 以题干中的字数要求为准</p><details className="cet-ready-reference"><summary>完成后逐项自查</summary><ul className="list-disc pl-5"><li>是否覆盖题干要求的全部要点？</li><li>每段是否有明确主旨，前后衔接是否自然？</li><li>检查时态、主谓一致、冠词和单复数。</li><li>对照参考稿，记录一处修改及其原因。</li></ul><p className="text-dim">参考稿只是表达示例。本应用不自动评分，建议请教师或同伴反馈。</p></details></section>
+          <section className="cet-ready-material" aria-label="写译题目"><h3>{section === 'writing' ? '写作任务' : '翻译原文'}</h3><div lang={section === 'writing' ? 'en' : 'zh-CN'} className="cet-ready-passage">{paper[section].prompt}</div></section>
+          <section className="cet-ready-questions"><OutputRevisionEditor key={section} kind={section} initialText={section === 'writing' ? draft.writingDraft : draft.translationDraft} onInitialChange={(text) => update(section === 'writing' ? { writingDraft: text } : { translationDraft: text })} revision={section === 'writing' ? draft.writingRevision : draft.translationRevision} onRevisionChange={(next) => update(section === 'writing' ? { writingRevision: next } : { translationRevision: next })} initialLabel={section === 'writing' ? '我的写作草稿' : '我的翻译草稿'} revisionLabel={section === 'writing' ? '我的写作修订稿' : '我的翻译修订稿'} reference={paper[section].reference} referenceTitle={section === 'writing' ? '查看参考范文与思路' : '查看参考译文'} disabled={busy} /></section>
         </div>}
         {section === 'review' && <section className="cet-ready-review">
           <h3>{scopeName}复盘</h3>

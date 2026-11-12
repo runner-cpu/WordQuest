@@ -5,6 +5,7 @@ import type { CetRewardProgress, CetRewardQuestionProgress } from '../types/mode
 import { CET_READY_PAPERS, loadReadyCetPaper } from './cetReadyPapers'
 import { addCetPaperReward, cetRewardQuestionKey, emptyCetPaperRewards, mergeCetRewardProgress, type CetPaperRewards } from './cetRewards'
 import { bumpDaily, ensureProfile, patchProfile } from './profile'
+import { invalidateInitialChecks, isOutputRevision, mergeOutputRevisions, outputRevisionEqual } from './outputRevision'
 
 const QUESTION_COUNT = 55
 export function cetPaperQuestionNumbers(scope: CetPaperScope = 'all'): number[] {
@@ -23,7 +24,7 @@ const FILE_KINDS: CetPaperFileKind[] = ['paper', 'answers', 'audio']
 const PDF_LIMIT = 30 * 1024 * 1024
 const AUDIO_LIMIT = 60 * 1024 * 1024
 const AUDIO_TYPES = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'audio/x-flac'])
-const PATCH_KEYS = ['variant', 'answers', 'answerKey', 'writingDraft', 'translationDraft', 'notes', 'elapsedSeconds'] as const
+const PATCH_KEYS = ['variant', 'answers', 'answerKey', 'writingDraft', 'translationDraft', 'notes', 'elapsedSeconds', 'writingRevision', 'translationRevision'] as const
 type StudyPatch = Partial<Pick<CetPaperStudy, typeof PATCH_KEYS[number]>>
 
 export class CetDraftConflict extends Error {
@@ -47,6 +48,12 @@ export function mergeCetDraft(previous: CetPaperStudy, base: StudyPatch, patch: 
         if (remote !== before[index] && remote !== next[index]) throw new CetDraftConflict(previous)
         return next[index]
       })
+    } else if (key === 'writingRevision' || key === 'translationRevision') {
+      const next = patch[key]
+      // Missing optional fields come from older editors; they never erase a saved revision.
+      if (next === undefined || outputRevisionEqual(next, base[key])) continue
+      if (!outputRevisionEqual(previous[key], base[key]) && !outputRevisionEqual(previous[key], next)) throw new CetDraftConflict(previous)
+      merged[key] = structuredClone(next)
     } else if (value !== base[key]) {
       if (previous[key] !== base[key] && previous[key] !== value) throw new CetDraftConflict(previous)
       Object.assign(merged, { [key]: value })
@@ -129,6 +136,11 @@ export function isCetPaperStudy(value: unknown): value is CetPaperStudy {
       timestamp(evidence.previousSubmittedAt) && timestamp(evidence.recordedAt) &&
       (value.createdAt as number) <= evidence.previousSubmittedAt && evidence.previousSubmittedAt < evidence.recordedAt && evidence.recordedAt <= (value.updatedAt as number))) return false
   }
+  for (const [key, draft] of [['writingRevision', 'writingDraft'], ['translationRevision', 'translationDraft']] as const) {
+    const revision = value[key]
+    if (revision !== undefined && (!isOutputRevision(revision) || revision.updatedAt < value.createdAt ||
+      revision.updatedAt > value.updatedAt || (revision.initialChecks.every(Boolean) && revision.initialCheckedText !== value[draft]))) return false
+  }
   if (!validPair(value.firstSubmission, value.latestSubmission, value.createdAt, value.updatedAt)) return false
   if (value.sectionSubmissions === undefined) return true
   if (!record(value.sectionSubmissions)) return false
@@ -175,6 +187,8 @@ export async function saveCetPaperStudy(id: string, patch: StudyPatch, editedAt?
       if (!validAnswers(value)) throw new Error('答案必须包含 55 个有效选项或空白')
     } else if (key === 'elapsedSeconds') {
       if (!timestamp(value)) throw new Error('学习时长无效')
+    } else if (key === 'writingRevision' || key === 'translationRevision') {
+      if (value !== undefined && !isOutputRevision(value)) throw new Error('修订稿、修改原因或自查记录无效')
     } else if (typeof value !== 'string' || (key === 'variant' && value.length > 200)) {
       throw new Error('草稿或套卷名称无效')
     }
@@ -184,7 +198,20 @@ export async function saveCetPaperStudy(id: string, patch: StudyPatch, editedAt?
     const previous = await requireStudy(id)
     if (!base && editedAt !== undefined && editedAt <= previous.updatedAt) return previous
     const updatedAt = base ? nextTimestamp(previous.updatedAt) : editedAt ?? nextTimestamp(previous.updatedAt)
-    const study: CetPaperStudy = { ...previous, ...(base ? mergeCetDraft(previous, base, copiedPatch) : copiedPatch), updatedAt }
+    const applied = base ? mergeCetDraft(previous, base, copiedPatch) : copiedPatch
+    for (const key of ['writingRevision', 'translationRevision'] as const) {
+      const revision = applied[key]
+      if (revision === undefined || (!base && previous[key] && revision.updatedAt <= previous[key]!.updatedAt)) delete applied[key]
+      else applied[key] = { ...revision, updatedAt }
+    }
+    const study: CetPaperStudy = { ...previous, ...applied, updatedAt }
+    for (const [key, draft] of [['writingRevision', 'writingDraft'], ['translationRevision', 'translationDraft']] as const) {
+      if (study[draft] !== previous[draft]) {
+        const revision = invalidateInitialChecks(study[key], study[draft], updatedAt)
+        if (revision) study[key] = { ...revision, updatedAt }
+      }
+    }
+    if (!isCetPaperStudy(study)) throw new Error('修订稿与当前初稿或保存时间不一致，请重新核对')
     await db.cetPapers.put(study)
     return structuredClone(study)
   })
@@ -459,6 +486,13 @@ export function mergeCetPaperStudies(local: CetPaperStudy | undefined, incoming:
       (incomingEvidence.recordedAt === current.recordedAt && incomingEvidence.text < current.text)) evidence[number] = incomingEvidence
   }
   if (Object.keys(evidence).length) study.correctionEvidence = structuredClone(evidence)
+  for (const [key, draft] of [['writingRevision', 'writingDraft'], ['translationRevision', 'translationDraft']] as const) {
+    const revision = mergeOutputRevisions(local?.[key], incoming[key])
+    if (!revision) continue
+    const original = outputRevisionEqual(revision, local?.[key]) ? local : incoming
+    const normalized = original?.[draft] !== study[draft] ? invalidateInitialChecks(revision, study[draft], revision.updatedAt) : revision
+    study[key] = { ...normalized!, updatedAt: revision.updatedAt }
+  }
   for (const scope of ['listening', 'reading'] as const) {
     const pairs = [local?.sectionSubmissions?.[scope], incoming.sectionSubmissions?.[scope]].filter((pair) => pair !== undefined)
     if (!pairs.length) continue

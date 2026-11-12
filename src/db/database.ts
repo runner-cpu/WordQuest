@@ -107,12 +107,16 @@ export class WordQuestDB extends Dexie {
       })
     })
     this.version(9).stores({}).upgrade(migrateVocabularyProgress)
+    // v10：写译修订为可选字段；旧初稿、提交、自查和奖励不做改写。
+    this.version(10).stores({}).upgrade(async (transaction) => {
+      await transaction.table<Profile>('profile').toCollection().modify((profile) => { profile.schemaVersion = 10 })
+    })
   }
 }
 
 export const db = new WordQuestDB()
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 export function todayKey(d = new Date()): string {
   const y = d.getFullYear()

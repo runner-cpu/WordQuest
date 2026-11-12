@@ -261,7 +261,8 @@ async function mergeBackupData(data: NonNullable<BackupPayload['data']>, paperMe
     db.cetPractice.filter((row) => row.attempts > 0).count(),
     db.cetPapers.filter((row) => row.latestSubmission !== undefined || row.elapsedSeconds > 0 ||
       row.answers.some(Boolean) || row.answerKey.some(Boolean) || Boolean(row.writingDraft.trim()) ||
-      Boolean(row.translationDraft.trim()) || Boolean(row.notes.trim()) || Object.keys(row.files).length > 0).count(),
+      Boolean(row.translationDraft.trim()) || row.writingRevision !== undefined || row.translationRevision !== undefined ||
+      Boolean(row.notes.trim()) || Object.keys(row.files).length > 0).count(),
   ])
   // 新设备必须先完成引导才能打开设置，首页也会自动建立未完成任务行。
   // 这些初始化记录不代表已学习；只有真实作答、听力或历史进度才保留本机设置。

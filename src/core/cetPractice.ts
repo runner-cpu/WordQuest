@@ -1,6 +1,8 @@
 import { cetPracticeMeta, type CetPracticeMeta } from '../data/cetPracticeIds'
 import { db } from '../db/database'
 import type { CetPracticeRecord } from '../types/model'
+import type { OutputRevision } from '../types/outputRevision'
+import { invalidateInitialChecks, isOutputRevision, mergeOutputRevisions, outputRevisionEqual, setOutputChecks } from './outputRevision'
 
 const CHECK_COUNT = 3
 
@@ -49,6 +51,38 @@ export async function saveCetDraft(id: string, text: string, editedAt = Date.now
     const previous = await db.cetPractice.get(id)
     if (previous && editedAt <= previous.updatedAt) return previous
     const record: CetPracticeRecord = { ...(previous ?? emptyRecord(meta, editedAt)), draft: text, updatedAt: editedAt }
+    if (previous?.revision && previous.draft !== text) record.revision = invalidateInitialChecks(previous.revision, text, editedAt)
+    await db.cetPractice.put(record)
+    return record
+  })
+}
+
+export class CetRevisionConflict extends Error {
+  constructor(public current: CetPracticeRecord | undefined) {
+    super('本机已有较新的修订稿。本页文字已保留，请核对另一页面的版本后重试。')
+  }
+}
+
+/** 修订稿只更新自己的版本；初稿、首次完成与最近提交均原样保留。 */
+export async function saveCetRevision(id: string, revision: OutputRevision, expected?: OutputRevision): Promise<CetPracticeRecord> {
+  const meta = requirePractice(id)
+  if (meta.kind === 'reading' || !isOutputRevision(revision) || (expected !== undefined && !isOutputRevision(expected))) {
+    throw new Error('修订稿、修改原因或自查记录无效')
+  }
+  const compareExpected = arguments.length >= 3
+  const copy = structuredClone(revision)
+  const base = expected ? structuredClone(expected) : undefined
+  return db.transaction('rw', [db.cetPractice], async () => {
+    const previous = await db.cetPractice.get(id)
+    if (compareExpected && !outputRevisionEqual(previous?.revision, base)) throw new CetRevisionConflict(previous)
+    if (!compareExpected && previous?.revision && copy.updatedAt <= previous.revision.updatedAt) return previous
+    const now = nextTimestamp(previous)
+    const next = { ...copy, updatedAt: now }
+    if (next.initialChecks.every(Boolean) && next.initialCheckedText !== (previous?.draft ?? '')) {
+      next.initialChecks = [false, false, false]
+      delete next.initialCheckedText
+    }
+    const record: CetPracticeRecord = { ...(previous ?? emptyRecord(meta, now)), revision: next, updatedAt: now }
     await db.cetPractice.put(record)
     return record
   })
@@ -99,6 +133,7 @@ export async function completeCetOutput(id: string, text: string, checks: boolea
       completedAt: previous?.completedAt ?? now,
       attempts: (previous?.attempts ?? 0) + 1,
     }
+    if (previous?.revision) record.revision = setOutputChecks(previous.revision, 'initial', text, submittedChecks, now)
     await db.cetPractice.put(record)
     return record
   })
@@ -111,6 +146,8 @@ export function isCetPracticeRecord(value: unknown): value is CetPracticeRecord 
   const meta = cetPracticeMeta(row.id)
   if (!meta || row.examType !== meta.examType || row.kind !== meta.kind || typeof row.draft !== 'string' ||
     !timestamp(row.updatedAt) || typeof row.attempts !== 'number' || !Number.isSafeInteger(row.attempts) || row.attempts < 0) return false
+  if (row.revision !== undefined && (meta.kind === 'reading' || !isOutputRevision(row.revision) || row.revision.updatedAt > row.updatedAt ||
+    (row.revision.initialChecks.every(Boolean) && row.revision.initialCheckedText !== row.draft))) return false
   const submittedFields = [row.submittedAt, row.completedAt]
   if (row.attempts === 0) {
     return [...submittedFields, row.firstSubmittedAt, row.firstAnswers, row.latestAnswers, row.submittedText, row.checks]
@@ -155,6 +192,12 @@ export function mergeCetPracticeRecords(local: CetPracticeRecord | undefined, in
   if (incoming.kind === 'reading' && first.firstSubmittedAt !== undefined) {
     record.firstSubmittedAt = first.firstSubmittedAt
     record.firstAnswers = [...first.firstAnswers!]
+  }
+  const revision = mergeOutputRevisions(local?.revision, incoming.revision)
+  if (revision) {
+    const original = outputRevisionEqual(revision, local?.revision) ? local : incoming
+    const normalized = original?.draft !== record.draft ? invalidateInitialChecks(revision, record.draft, revision.updatedAt) : revision
+    record.revision = { ...normalized!, updatedAt: revision.updatedAt }
   }
   return record
 }

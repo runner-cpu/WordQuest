@@ -1,4 +1,7 @@
 export type CetPaperFileKind = 'paper' | 'answers' | 'audio'
+import type { OutputRevision } from './outputRevision'
+export type { OutputRevision } from './outputRevision'
+
 export type CetPaperScope = 'all' | 'listening' | 'reading'
 
 /** 用户在本机导入的文件；字节保存在 media 表中。 */
@@ -35,6 +38,8 @@ export interface CetPaperStudy {
   answerKey: string[]
   writingDraft: string
   translationDraft: string
+  writingRevision?: OutputRevision
+  translationRevision?: OutputRevision
   notes: string
   /** 由明确的单题证据操作登记；公共笔记不自动成为订正证据。 */
   correctionEvidence?: Record<string, CetCorrectionEvidence>

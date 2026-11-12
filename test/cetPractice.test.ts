@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { CET_PRACTICES } from '../src/data/cetPractice.ts'
 import { CET_PRACTICE_META } from '../src/data/cetPracticeIds.ts'
 import { db, SCHEMA_VERSION } from '../src/db/database.ts'
-import { completeCetOutput, countCetEnglishWords, isCetPracticeRecord, saveCetDraft, submitCetReading } from '../src/core/cetPractice.ts'
+import { completeCetOutput, countCetEnglishWords, isCetPracticeRecord, saveCetDraft, saveCetRevision, submitCetReading } from '../src/core/cetPractice.ts'
+import { editOutputRevision, emptyOutputRevision, setOutputChecks } from '../src/core/outputRevision.ts'
 import type { CetPracticeRecord } from '../src/types/model.ts'
 
 const readingId = 'cet4-reading-1'
@@ -11,6 +12,39 @@ const writingId = 'cet4-writing-1'
 const translationId = 'cet6-translation-1'
 const writingText = 'A helpful campus service should listen to students and explain its rules clearly before making changes to the daily schedule.'
 const translationText = 'The new library offers students a quiet place to read after class.'
+
+test('CET: revisions preserve initial drafts and completed submissions with optimistic conflict handling', async (t) => {
+  const fixture = cetFixture(t)
+  await completeCetOutput(writingId, writingText, [true, true, true])
+  const revision = editOutputRevision(emptyOutputRevision(), { text: 'A separate revision.', reasons: ['cohesion'] })
+  const saved = await saveCetRevision(writingId, revision, undefined)
+  assert.equal(saved.draft, writingText)
+  assert.equal(saved.submittedText, writingText)
+  assert.equal(saved.attempts, 1)
+  assert.deepEqual(saved.revision?.reasons, ['cohesion'])
+  const checked = setOutputChecks(saved.revision!, 'revision', saved.revision!.text, [true, true, true])
+  const completed = await saveCetRevision(writingId, checked, structuredClone(saved.revision))
+  assert.equal(isCetPracticeRecord(completed), true)
+  await assert.rejects(saveCetRevision(writingId, editOutputRevision(saved.revision!, { text: 'Stale tab revision.' }), saved.revision), /修订|冲突/)
+  assert.equal(fixture.row(writingId)?.revision?.text, 'A separate revision.')
+  const changedInitial = await saveCetDraft(writingId, 'The initial remains editable.', completed.updatedAt + 1)
+  assert.equal(changedInitial.revision?.text, 'A separate revision.')
+  assert.equal(changedInitial.submittedText, writingText)
+  assert.equal(changedInitial.attempts, 1)
+})
+
+test('CET: invalid revisions and reading revisions fail without writing, and revision edits invalidate self-checks', async (t) => {
+  const fixture = cetFixture(t)
+  await assert.rejects(saveCetRevision(readingId, emptyOutputRevision()))
+  await assert.rejects(saveCetRevision(writingId, { ...emptyOutputRevision(), reasons: ['invalid'] } as never))
+  assert.equal(fixture.writes(), 0)
+  const saved = await saveCetRevision(translationId, emptyOutputRevision())
+  const checked = setOutputChecks(saved.revision!, 'initial', saved.draft, [true, false, false])
+  const partial = await saveCetRevision(translationId, checked, saved.revision)
+  const next = await saveCetDraft(translationId, translationText, partial.updatedAt + 1)
+  assert.deepEqual(next.revision?.initialChecks, [false, false, false])
+  assert.equal(isCetPracticeRecord({ ...next, revision: { ...next.revision, revisionChecks: [true, true, true] } }), false)
+})
 
 /** Yield on reads, serialize writers, and model rollback at the storage boundary. */
 function cetFixture(t: TestContext) {
@@ -69,8 +103,8 @@ function cetFixture(t: TestContext) {
   }
 }
 
-test('CET: lightweight registry matches all twelve content tasks and additive schema nine', () => {
-  assert.equal(SCHEMA_VERSION, 9)
+test('CET: lightweight registry matches all twelve content tasks and additive schema ten', () => {
+  assert.equal(SCHEMA_VERSION, 10)
   assert.equal(CET_PRACTICE_META.length, 12)
   assert.equal(new Set(CET_PRACTICE_META.map((task) => task.id)).size, 12)
   assert.deepEqual(CET_PRACTICE_META.map((task) => task.id).sort(), CET_PRACTICES.map((task) => task.id).sort())

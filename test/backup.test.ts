@@ -9,6 +9,8 @@ import { deriveState, emptySnapshot } from '../src/core/fsrs.ts'
 import { claimChest } from '../src/core/progress.ts'
 import type { AdventureProgress, CetPracticeRecord, CetRewardQuestionProgress, DailyQuest, ExpressionProgress, Profile, ReviewLog, UserWordStat, Word } from '../src/types/model.ts'
 import type { CetPaperStudy, CetPaperSubmission } from '../src/types/cetPaper.ts'
+import type { OutputRevision } from '../src/types/outputRevision.ts'
+import { emptyOutputRevision } from '../src/core/outputRevision.ts'
 
 const TABLE_KEYS = {
   words: 'id', stats: 'wordId', reviewLogs: 'id', dailyLogs: 'date', profile: 'id',
@@ -347,7 +349,7 @@ test('backup: export/import on a clean device restores settings, inventory, ques
     cetPractice: [cetReading(), cetOutput()],
   })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 9)
+  assert.equal(exported.schemaVersion, 10)
   const localWord = { ...word, definition: '本地修订释义', bookId: 'cet4-core', unitId: 1, bookUnits: undefined }
   fixture.reset({
     words: [localWord],
@@ -702,6 +704,107 @@ function paperStudy(patch: Partial<CetPaperStudy> = {}): CetPaperStudy {
     firstSubmission: paperSnapshot(100, 'B'), latestSubmission: paperSnapshot(300), ...patch,
   }
 }
+
+function checkedOutputRevision(initial: string, text: string, updatedAt: number): OutputRevision {
+  return { ...emptyOutputRevision(updatedAt), text, reasons: ['tense', 'cohesion'],
+    initialChecks: [true, true, true], revisionChecks: [true, true, true],
+    initialCheckedText: initial, revisionCheckedText: text }
+}
+
+test('backup: original and paper revisions round trip their separate text, reasons and checked snapshots', async (t) => {
+  const original = cetOutput({ revision: checkedOutputRevision('a revised draft', 'A separate revised version.', 350) })
+  const paper = paperStudy({ writingRevision: checkedOutputRevision('a draft', 'Paper writing revision.', 250),
+    translationDraft: 'Initial translation.', translationRevision: checkedOutputRevision('Initial translation.', 'Revised translation.', 270) })
+  const fixture = databaseFixture(t, { cetPractice: [original], cetPapers: [paper] })
+  const exported = await exportBackup()
+  assert.equal(exported.schemaVersion, 10)
+  assert.deepEqual(exported.data.cetPractice, [original])
+  assert.deepEqual(exported.data.cetPapers, [paper])
+  fixture.reset({})
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.deepEqual(fixture.get<CetPracticeRecord>('cetPractice', original.id), original)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paper.id), paper)
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.xp, 0)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.coins, 0)
+  assert.equal(fixture.get<DailyQuest>('quests', todayKey()), undefined)
+})
+
+test('backup: each output revision merges by its own clock and changed initials invalidate only matching checks', async (t) => {
+  const localOutput = cetOutput({ draft: 'The current initial.', updatedAt: 900,
+    revision: checkedOutputRevision('The current initial.', 'Older local revision.', 600) })
+  const incomingOutput = cetOutput({ draft: 'The older remote initial.', updatedAt: 700,
+    revision: checkedOutputRevision('The older remote initial.', 'Newer remote revision.', 650) })
+  const localPaper = paperStudy({ updatedAt: 900, writingDraft: 'Current writing.', translationDraft: 'Current translation.',
+    writingRevision: checkedOutputRevision('Current writing.', 'Older writing revision.', 600),
+    translationRevision: checkedOutputRevision('Current translation.', 'Keep translation revision.', 800) })
+  const incomingPaper = paperStudy({ updatedAt: 700, writingDraft: 'Remote writing.', translationDraft: 'Remote translation.',
+    writingRevision: checkedOutputRevision('Remote writing.', 'Newer writing revision.', 650),
+    translationRevision: checkedOutputRevision('Remote translation.', 'Older translation revision.', 500) })
+  const fixture = databaseFixture(t, { cetPractice: [localOutput], cetPapers: [localPaper] })
+  const payload = { data: { reviewLogs: [], cetPractice: [incomingOutput], cetPapers: [incomingPaper] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  const output = fixture.get<CetPracticeRecord>('cetPractice', localOutput.id)!
+  assert.equal(output.draft, localOutput.draft)
+  assert.equal(output.revision?.text, incomingOutput.revision?.text)
+  assert.equal(output.revision?.updatedAt, 650)
+  assert.deepEqual(output.revision?.initialChecks, [false, false, false])
+  assert.equal(output.revision?.initialCheckedText, undefined)
+  assert.deepEqual(output.revision?.revisionChecks, [true, true, true])
+  assert.equal(output.submittedText, localOutput.submittedText)
+  assert.equal(output.attempts, localOutput.attempts)
+  const paper = fixture.get<CetPaperStudy>('cetPapers', paperId)!
+  assert.equal(paper.writingDraft, localPaper.writingDraft)
+  assert.equal(paper.writingRevision?.text, incomingPaper.writingRevision?.text)
+  assert.deepEqual(paper.writingRevision?.initialChecks, [false, false, false])
+  assert.deepEqual(paper.writingRevision?.revisionChecks, [true, true, true])
+  assert.deepEqual(paper.translationRevision, localPaper.translationRevision)
+  assert.deepEqual(paper.firstSubmission, localPaper.firstSubmission)
+  assert.deepEqual(paper.latestSubmission, localPaper.latestSubmission)
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+  const oldBackup = { schemaVersion: 9, data: { reviewLogs: [],
+    cetPractice: [cetOutput({ draft: localOutput.draft, updatedAt: 1000 })],
+    cetPapers: [paperStudy({ updatedAt: 1000, writingDraft: localPaper.writingDraft, translationDraft: localPaper.translationDraft })] } }
+  assert.equal((await importBackup(backupFile(oldBackup))).ok, true)
+  assert.deepEqual(fixture.get<CetPracticeRecord>('cetPractice', localOutput.id)?.revision, output.revision)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paperId)?.writingRevision, paper.writingRevision)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paperId)?.translationRevision, paper.translationRevision)
+})
+
+test('backup: malformed new revision fields reject every table before any write', async (t) => {
+  const valid = checkedOutputRevision('a revised draft', 'A separate revision.', 350)
+  const fixture = databaseFixture(t, { cetPractice: [cetOutput()] })
+  const before = fixture.snapshot()
+  const malformed = [
+    { ...valid, reasons: ['score'] }, { ...valid, revisionCheckedText: 'Different text.' },
+    { ...valid, initialCheckedText: 'Different initial.' }, { ...valid, updatedAt: 500 },
+    { ...valid, revisionChecks: [true, true, 'true'] }, { ...valid, initialChecks: [false, false, false] },
+  ]
+  for (const revision of malformed) {
+    const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word],
+      cetPractice: [cetOutput({ revision: revision as never })] } }))
+    assert.equal(result.ok, false)
+    assert.match(result.error!, /专项练习/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+  for (const revision of [
+    { ...checkedOutputRevision('a draft', 'Paper revision.', 250), reasons: ['score'] },
+    checkedOutputRevision('Another initial.', 'Paper revision.', 250),
+    checkedOutputRevision('a draft', 'Paper revision.', 9),
+    checkedOutputRevision('a draft', 'Paper revision.', 400),
+  ]) {
+    const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word],
+      cetPapers: [paperStudy({ writingRevision: revision as never })] } }))
+    assert.equal(result.ok, false)
+    assert.match(result.error!, /真题/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+})
+
 const paperRef = (suffix: string, kind = 'paper' as 'paper' | 'answers') => ({
   id: `cet-paper:${paperId}:${kind}:${suffix}`, name: `${suffix}.pdf`, type: paperPdf.type, size: paperPdf.size,
 })
@@ -713,6 +816,8 @@ test('backup: edited paper drafts keep local settings before checking, while emp
     notes: '', elapsedSeconds: 0, files: {}, firstSubmission: undefined, latestSubmission: undefined })
   const fixture = databaseFixture(t)
   const edits: Partial<CetPaperStudy>[] = [{ writingDraft: 'My first draft' }, { translationDraft: 'My translation' },
+    { writingRevision: checkedOutputRevision('', 'My independent revision.', 250) },
+    { translationRevision: checkedOutputRevision('', 'My revised translation.', 250) },
     { notes: 'Listen for the contrast' }, { answers: paperAnswers('B') }, { answerKey: paperAnswers('A') },
     { files: { paper: paperRef('local-draft') } }]
   for (const edit of [...edits, {}]) {
@@ -729,7 +834,7 @@ test('backup: real-paper cards, independent submissions and local documents surv
   const study = paperStudy({ files: { paper: ref } })
   const fixture = databaseFixture(t, { cetPapers: [study], media: [{ id: ref.id, blob: paperPdf }] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 9)
+  assert.equal(exported.schemaVersion, 10)
   assert.deepEqual(exported.data.cetPapers, [study])
   assert.equal(exported.data.media[0].type, 'application/pdf')
   fixture.reset({})

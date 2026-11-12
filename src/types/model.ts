@@ -1,3 +1,5 @@
+import type { OutputRevision } from './outputRevision'
+
 /** 数据模型 —— 对应设计方案 §8.3 */
 
 /** 词条（来自 ECDICT，构建期生成的分片 JSON） */
@@ -202,6 +204,8 @@ export interface CetPracticeRecord {
   examType: 'cet4' | 'cet6'
   kind: CetPracticeKind
   draft: string
+  /** 初稿保留在 draft；修订稿及两版自查独立保存。 */
+  revision?: OutputRevision
   updatedAt: number
   /** 阅读首次完整提交的答案，用于保留首次表现。 */
   firstSubmittedAt?: number

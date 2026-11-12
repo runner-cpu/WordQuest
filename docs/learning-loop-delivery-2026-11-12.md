@@ -116,3 +116,30 @@ schema 9 保留全部旧迁移，增加可选 productionCorrectCount、日志 ne
 
 ### 对现有基线的影响
 145 项原单测和6条原浏览器流程均保留并通过；不更改FSRS算法，不新增依赖。每轮按最多24个词组织，新词额外产出次数单独表达，结算词单去重。
+
+
+## 批次 E 完成报告
+
+### 改动摘要
+- 写作与翻译共用双稿编辑区，初稿和修订稿分别保存，支持八类修改原因、各版三项自查和文本快照；继续修改只清除该版自查。
+- 参考按完整句展开，合并 PDF 软换行；按段落位置近似提示，数量不同明确回退手动选择，不作语义匹配或自动评分。自带 PDF 档案也可手动对照。
+- 真题工作区深比较修订对象，保留保存期间输入与双标签冲突选择；归档复用同一 CAS 流程。
+- 原创专项保留原稿完成快照，顺序保存两版、同步事务后时间基线，后台和关闭时追平最新输入。
+
+### 文件清单
+- 新增：src/types/outputRevision.ts、src/core/outputRevision.ts、src/features/OutputRevisionEditor.tsx、test/outputRevision.test.ts、test/cetPaperDraft.test.ts、e2e/batch-e.spec.ts。
+- 修改：types/cetPaper、types/model、db/database、core/cetPapers、cetPractice、backup、features/useCetPaperDraft、CetOutputExercise、CetReadyWorkspace、CetPaperWorkspace；对应备份和领域回归测试。
+
+### 数据结构与迁移
+schema 10 增量保留旧迁移。CetPaperStudy 增加可选 writingRevision/translationRevision；CetPracticeRecord 增加可选 revision。旧初稿和完成文本不改写。修订独立按保存时间合并；旧备份缺字段不会清除修订，仅修订有内容也计入备份进度保护。
+
+### 测试
+- 新增 19 项单测，共 214/214 通过；覆盖双稿、八类原因、检查失效、软换行、严格数据校验、深比较冲突、保存期间继续输入、备份往返与旧数据兼容。
+- 新增 2 条浏览器流程，共 19/19 通过；覆盖主卷两版与原因持久化、参考手动对应、继续输入清除自查、手机原创初稿完成后修订并重开。
+- typecheck、build、diff 检查通过。发现并修复词数 output 的隐含 status 与原保存状态选择器冲突；未修改或放宽原浏览器断言。
+
+### 已知边界与 TODO
+参考仅按位置辅助核对，表达质量与信息覆盖由学习者判断；缺少参考的卷别保留说明。自查标记不是自动评分，写译不发放题目正确奖励。
+
+### 对现有基线的影响
+原 145 项单测与 6 项浏览器流程全部保留通过。schema 数字断言同步为 10，无新依赖、无数据清理。独立代码复核未发现剩余输入丢失或自查错误标记问题。

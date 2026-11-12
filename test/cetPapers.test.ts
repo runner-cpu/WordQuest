@@ -16,11 +16,44 @@ import {
   CetDraftConflict,
 } from '../src/core/cetPapers.ts'
 import type { CetPaperStudy } from '../src/types/cetPaper.ts'
+import { editOutputRevision, emptyOutputRevision, setOutputChecks } from '../src/core/outputRevision.ts'
 
 const sourceId = CET_PAPER_SOURCES[0].id
 const emptyAnswers = () => Array<string>(55).fill('')
 const pdf = (name = 'paper.pdf') => new File(['%PDF-1.7\nexample'], name, { type: 'application/pdf' })
 const audio = (name = 'listening.mp3') => new File([new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0])], name, { type: 'audio/mpeg' })
+
+test('CET papers: deep revision CAS merges unrelated sections and conflicts on the same edited revision', async (t) => {
+  paperFixture(t)
+  const initial = await createCetPaperStudy(sourceId)
+  const writingRevision = editOutputRevision(emptyOutputRevision(), { text: 'My writing revision.', reasons: ['article'] })
+  const writing = await saveCetPaperStudy(initial.id, { writingDraft: 'Initial writing.', writingRevision }, undefined, initial)
+  const translationRevision = editOutputRevision(emptyOutputRevision(), { text: 'My translation revision.', reasons: ['omission'] })
+  const merged = await saveCetPaperStudy(initial.id, { translationRevision }, undefined, structuredClone(initial))
+  assert.equal(merged.writingDraft, 'Initial writing.')
+  assert.equal(merged.writingRevision?.text, 'My writing revision.')
+  assert.equal(merged.translationRevision?.text, 'My translation revision.')
+  const corrected = editOutputRevision(merged.writingRevision!, { text: 'Remote corrected writing.' })
+  await saveCetPaperStudy(initial.id, { writingRevision: corrected }, undefined, structuredClone(merged))
+  await assert.rejects(saveCetPaperStudy(initial.id, { writingRevision: editOutputRevision(writing.writingRevision!, { text: 'Stale local version.' }) }, undefined, writing), CetDraftConflict)
+  assert.equal(isCetPaperStudy(await saveCetPaperStudy(initial.id, {}, undefined, merged)), true)
+})
+
+test('CET papers: editing initials invalidates matching checks while preserving revision text and import timestamps', async (t) => {
+  paperFixture(t)
+  const study = await createCetPaperStudy(sourceId)
+  const revision = setOutputChecks(editOutputRevision(emptyOutputRevision(), { text: 'Independent revised text.', reasons: ['tense'] }), 'initial', 'Initial text.', [true, true, true])
+  const saved = await saveCetPaperStudy(study.id, { writingDraft: 'Initial text.', writingRevision: revision }, undefined, study)
+  const edited = await saveCetPaperStudy(study.id, { writingDraft: 'Changed initial text.' }, undefined, saved)
+  assert.equal(edited.writingRevision?.text, 'Independent revised text.')
+  assert.deepEqual(edited.writingRevision?.initialChecks, [false, false, false])
+  assert.equal(edited.writingRevision?.initialCheckedText, undefined)
+  assert.equal(isCetPaperStudy({ ...edited, writingRevision: { ...edited.writingRevision, reasons: ['invalid'] } }), false)
+  const newerParent = { ...edited, updatedAt: edited.updatedAt + 100, writingRevision: undefined }
+  const merged = mergeCetPaperStudies(edited, newerParent)
+  assert.equal(merged.writingRevision?.text, 'Independent revised text.')
+  assert.equal(isCetPaperStudy(merged), true)
+})
 
 test('concurrent drafts merge different questions and writing without dropping either tab', async t => {
   paperFixture(t)
@@ -174,7 +207,7 @@ function paperFixture(t: TestContext) {
 test('CET papers: create an independent local answer card with 55 empty answers', async (t) => {
   t.mock.method(Date, 'now', () => 100)
   const fixture = paperFixture(t)
-  assert.equal(SCHEMA_VERSION, 9)
+  assert.equal(SCHEMA_VERSION, 10)
   const first = await createCetPaperStudy(sourceId, '第一套')
   const second = await createCetPaperStudy(sourceId, '第二套')
   assert.notEqual(first.id, second.id)

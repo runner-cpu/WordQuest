@@ -1,16 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
 import { CetDraftConflict, saveCetPaperStudy } from '../core/cetPapers'
+import { outputRevisionEqual } from '../core/outputRevision'
 import type { CetPaperStudy } from '../types/cetPaper'
 
-type Draft = Pick<CetPaperStudy, 'answers' | 'writingDraft' | 'translationDraft' | 'notes'>
-const draftOf = (study: CetPaperStudy): Draft => ({ answers: [...study.answers], writingDraft: study.writingDraft, translationDraft: study.translationDraft, notes: study.notes })
+export type CetPaperDraft = Pick<CetPaperStudy, 'variant' | 'answers' | 'answerKey' | 'writingDraft' | 'translationDraft' | 'writingRevision' | 'translationRevision' | 'notes'>
+const textFields = ['variant', 'writingDraft', 'translationDraft', 'notes'] as const
+const revisionFields = ['writingRevision', 'translationRevision'] as const
+const arrayEqual = (left: string[], right: string[]) => left.length === right.length && left.every((value, index) => value === right[index])
+
+/** Own all nested values so saved snapshots cannot change underneath an edit. */
+export function cetDraftOf(study: CetPaperStudy): CetPaperDraft {
+  return structuredClone({ variant: study.variant, answers: study.answers, answerKey: study.answerKey,
+    writingDraft: study.writingDraft, translationDraft: study.translationDraft,
+    writingRevision: study.writingRevision, translationRevision: study.translationRevision, notes: study.notes })
+}
+
+/** Only changed fields participate in the per-field compare-and-swap. */
+export function cetDraftPatch(base: CetPaperDraft, current: CetPaperDraft): Partial<CetPaperDraft> {
+  const patch: Partial<CetPaperDraft> = {}
+  for (const key of textFields) if (current[key] !== base[key]) patch[key] = current[key]
+  for (const key of ['answers', 'answerKey'] as const) if (!arrayEqual(current[key], base[key])) patch[key] = current[key]
+  for (const key of revisionFields) if (!outputRevisionEqual(current[key], base[key])) patch[key] = current[key]
+  return structuredClone(patch)
+}
+
+/** Preserve edits made since a snapshot, accepting unrelated changes from storage. */
+export function mergePendingCetDraft(fresh: CetPaperDraft, sent: CetPaperDraft, pending: CetPaperDraft): CetPaperDraft {
+  const merged = structuredClone(fresh)
+  for (const key of textFields) if (pending[key] !== sent[key]) merged[key] = pending[key]
+  for (const key of ['answers', 'answerKey'] as const) {
+    merged[key] = fresh[key].map((value, index) => pending[key][index] !== sent[key][index] ? pending[key][index] : value)
+  }
+  for (const key of revisionFields) if (!outputRevisionEqual(pending[key], sent[key])) merged[key] = structuredClone(pending[key])
+  return merged
+}
 
 export function useCetPaperDraft(initial: CetPaperStudy) {
   const [study, setStudy] = useState(initial)
   const studyRef = useRef(initial)
-  const [draft, setDraft] = useState(() => draftOf(initial))
+  const [draft, setDraft] = useState(() => cetDraftOf(initial))
   const draftRef = useRef(draft)
-  const baseRef = useRef(draftOf(initial))
+  const baseRef = useRef(cetDraftOf(initial))
   const conflictRef = useRef<CetPaperStudy | null>(null)
   const [conflict, setConflict] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -23,7 +53,7 @@ export function useCetPaperDraft(initial: CetPaperStudy) {
   const [busy, setBusy] = useState(false)
   const lock = useRef(false)
 
-  function update(patch: Partial<Draft>) {
+  function update(patch: Partial<CetPaperDraft>) {
     draftRef.current = { ...draftRef.current, ...patch }
     setDraft(draftRef.current)
     revisionRef.current += 1
@@ -35,18 +65,18 @@ export function useCetPaperDraft(initial: CetPaperStudy) {
       if (conflictRef.current) throw new CetDraftConflict(conflictRef.current)
       const target = revisionRef.current
       if (target <= savedRevision.current) return studyRef.current
-      const patch = structuredClone(draftRef.current)
+      const sent = structuredClone(draftRef.current)
+      const patch = cetDraftPatch(baseRef.current, sent)
+      if (!Object.keys(patch).length) {
+        savedRevision.current = target
+        if (mounted.current) { setSaveState('saved'); setError('') }
+        return studyRef.current
+      }
       if (mounted.current) setSaveState('saving')
       const saved = await saveCetPaperStudy(initial.id, patch, undefined, baseRef.current)
-      const fresh = draftOf(saved)
-      const pending = draftRef.current
+      const fresh = cetDraftOf(saved)
       // Keep keystrokes made while the write was in flight, incorporating other tabs elsewhere.
-      draftRef.current = {
-        answers: fresh.answers.map((answer, i) => pending.answers[i] !== patch.answers[i] ? pending.answers[i] : answer),
-        writingDraft: pending.writingDraft !== patch.writingDraft ? pending.writingDraft : fresh.writingDraft,
-        translationDraft: pending.translationDraft !== patch.translationDraft ? pending.translationDraft : fresh.translationDraft,
-        notes: pending.notes !== patch.notes ? pending.notes : fresh.notes,
-      }
+      draftRef.current = mergePendingCetDraft(fresh, sent, draftRef.current)
       baseRef.current = fresh
       studyRef.current = saved; savedRevision.current = target
       if (mounted.current) { setDraft(draftRef.current); setStudy(saved); setSaveState(target === revisionRef.current ? 'saved' : 'dirty'); setError('') }
@@ -63,15 +93,10 @@ export function useCetPaperDraft(initial: CetPaperStudy) {
   function resolveConflict(keepLocal: boolean) {
     const remote = conflictRef.current
     if (!remote || lock.current) return
-    const fresh = draftOf(remote)
+    const fresh = cetDraftOf(remote)
     const base = baseRef.current
     const local = draftRef.current
-    draftRef.current = keepLocal ? {
-      answers: fresh.answers.map((answer, i) => local.answers[i] !== base.answers[i] ? local.answers[i] : answer),
-      writingDraft: local.writingDraft !== base.writingDraft ? local.writingDraft : fresh.writingDraft,
-      translationDraft: local.translationDraft !== base.translationDraft ? local.translationDraft : fresh.translationDraft,
-      notes: local.notes !== base.notes ? local.notes : fresh.notes,
-    } : fresh
+    draftRef.current = keepLocal ? mergePendingCetDraft(fresh, base, local) : fresh
     baseRef.current = fresh; studyRef.current = remote; conflictRef.current = null
     setConflict(false); setDraft(draftRef.current); setStudy(remote)
     revisionRef.current++; setRevision(revisionRef.current)
@@ -84,8 +109,14 @@ export function useCetPaperDraft(initial: CetPaperStudy) {
     lock.current = true; setBusy(true); setError('')
     try {
       await persist()
+      const beforeAction = cetDraftOf(studyRef.current)
       const saved = await run()
-      if (saved) { studyRef.current = saved; if (mounted.current) setStudy(saved) }
+      if (saved) {
+        const fresh = cetDraftOf(saved)
+        draftRef.current = mergePendingCetDraft(fresh, beforeAction, draftRef.current)
+        baseRef.current = fresh; studyRef.current = saved
+        if (mounted.current) { setStudy(saved); setDraft(draftRef.current) }
+      }
     } catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : '操作未完成，请重试') }
     finally { lock.current = false; if (mounted.current) setBusy(false) }
   }

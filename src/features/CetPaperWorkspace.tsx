@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { attachCetPaperFile, cetPaperResult, parseCetAnswerKey, saveCetPaperStudy, submitCetPaperStudy } from '../core/cetPapers'
+import { attachCetPaperFile, cetPaperResult, parseCetAnswerKey, submitCetPaperStudy } from '../core/cetPapers'
 import type { CetPaperSource } from '../data/cetPaperSources'
 import { db } from '../db/database'
 import type { CetPaperFileKind, CetPaperStudy, CetPaperSubmission } from '../types/cetPaper'
 import { PixelButton } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
+import { OutputRevisionEditor } from './OutputRevisionEditor'
+import { useCetPaperDraft } from './useCetPaperDraft'
 import './cetPaperWorkspace.css'
 
-type Draft = Pick<CetPaperStudy, 'variant' | 'answers' | 'answerKey' | 'writingDraft' | 'translationDraft' | 'notes'>
 const TABS = [{ id: 'files', name: '原卷与录音' }, { id: 'answers', name: '答题卡' }, { id: 'writing', name: '写作与翻译' }, { id: 'review', name: '复盘' }] as const
 type Tab = typeof TABS[number]['id']
 const GROUPS = [{ name: '听力', start: 0, end: 25, letters: 4 }, { name: '选词填空', start: 25, end: 35, letters: 15 }, { name: '长篇匹配', start: 35, end: 45, letters: 26 }, { name: '仔细阅读', start: 45, end: 55, letters: 4 }]
@@ -16,22 +17,8 @@ const FILES: { kind: CetPaperFileKind; label: string; accept: string }[] = [
   { kind: 'answers', label: '答案 PDF', accept: 'application/pdf,.pdf' },
   { kind: 'audio', label: '听力录音', accept: 'audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/aac,audio/flac,.mp3,.wav,.ogg,.webm,.m4a,.aac,.flac' },
 ]
-const draftOf = (row: CetPaperStudy): Draft => ({ variant: row.variant, answers: [...row.answers], answerKey: [...row.answerKey], writingDraft: row.writingDraft, translationDraft: row.translationDraft, notes: row.notes })
-
 export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPaperSource; initial: CetPaperStudy; onClose: () => void }) {
-  const [study, setStudy] = useState(initial)
-  const studyRef = useRef(initial)
-  const [draft, setDraft] = useState(() => draftOf(initial))
-  const draftRef = useRef(draft)
-  const [revision, setRevision] = useState(0)
-  const revisionRef = useRef(0)
-  const savedRevision = useRef(0)
-  const editedAt = useRef(initial.updatedAt)
-  const queue = useRef<Promise<CetPaperStudy>>(Promise.resolve(initial))
-  const [saveState, setSaveState] = useState<'saved' | 'dirty' | 'saving' | 'error'>('saved')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const actionLock = useRef(false)
+  const { study, draft, update, choose, action: runAction, saveState, error, busy, conflict, resolveConflict } = useCetPaperDraft(initial)
   const [tab, setTab] = useState<Tab>('files')
   const [keyText, setKeyText] = useState('')
   const keyTextRef = useRef('')
@@ -41,49 +28,7 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
   const [documentKind, setDocumentKind] = useState<'paper' | 'answers'>('paper')
   const dialog = useRef<HTMLDialogElement>(null)
   const body = useRef<HTMLDivElement>(null)
-  const mounted = useRef(true)
   const closeRef = useRef<() => void>(() => undefined)
-
-  function update(patch: Partial<Draft>) {
-    draftRef.current = { ...draftRef.current, ...patch }
-    setDraft(draftRef.current)
-    revisionRef.current += 1
-    editedAt.current = Math.max(Date.now(), editedAt.current + 1, studyRef.current.updatedAt + 1)
-    setRevision(revisionRef.current)
-    setSaveState('dirty')
-  }
-
-  function persist(): Promise<CetPaperStudy> {
-    const target = revisionRef.current
-    const patch = structuredClone(draftRef.current)
-    const editTime = editedAt.current
-    const work = queue.current.catch(() => studyRef.current).then(async () => {
-      if (target <= savedRevision.current) return studyRef.current
-      if (mounted.current) setSaveState('saving')
-      const saved = await saveCetPaperStudy(initial.id, patch, Math.max(editTime, studyRef.current.updatedAt + 1))
-      const matches = Object.entries(patch).every(([key, value]) => JSON.stringify(saved[key as keyof Draft]) === JSON.stringify(value))
-      if (!matches) {
-        studyRef.current = saved
-        throw new Error('档案在另一处有更新，当前输入仍保留，请重新保存。')
-      }
-      studyRef.current = saved
-      savedRevision.current = target
-      if (mounted.current) {
-        setStudy(saved)
-        setSaveState(target === revisionRef.current ? 'saved' : 'dirty')
-        setError('')
-      }
-      return saved
-    })
-    queue.current = work
-    return work.catch((cause: unknown) => {
-      if (mounted.current) {
-        setSaveState('error')
-        setError(cause instanceof Error ? cause.message : '保存失败，当前输入仍在，请重试保存。')
-      }
-      throw cause
-    })
-  }
 
   function applyPendingKey(): boolean {
     if (!keyTextRef.current.trim()) return true
@@ -96,20 +41,14 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
     return true
   }
 
-  async function action(run: () => Promise<void>) {
-    if (actionLock.current) return
+  async function action(run: () => Promise<CetPaperStudy | void>) {
     if (!applyPendingKey()) return
-    actionLock.current = true
-    setBusy(true); setError('')
-    try { await persist(); await run() }
-    catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : '操作失败，输入仍保留，请重试。') }
-    finally { actionLock.current = false; if (mounted.current) setBusy(false) }
+    await runAction(run)
   }
 
   closeRef.current = () => { void action(async () => { onClose() }) }
 
   useEffect(() => {
-    mounted.current = true
     const element = dialog.current!
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
@@ -117,23 +56,16 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
     element.querySelector<HTMLHeadingElement>('#cet-paper-title')?.focus()
     document.body.style.overflow = 'hidden'
     const protect = (event: BeforeUnloadEvent) => {
-      if (revisionRef.current > savedRevision.current || keyTextRef.current.trim()) event.preventDefault()
+      if (keyTextRef.current.trim()) { event.preventDefault(); event.returnValue = '' }
     }
     window.addEventListener('beforeunload', protect)
     return () => {
-      mounted.current = false
       element.close()
       document.body.style.overflow = previousOverflow
       window.removeEventListener('beforeunload', protect)
       opener?.focus()
     }
   }, [])
-
-  useEffect(() => {
-    if (revision === 0) return
-    const timer = window.setTimeout(() => { void persist().catch(() => undefined) }, 650)
-    return () => window.clearTimeout(timer)
-  }, [revision])
 
   useEffect(() => { body.current?.scrollTo({ top: 0 }) }, [tab])
 
@@ -159,16 +91,16 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
   async function upload(kind: CetPaperFileKind, file: File) {
     await action(async () => {
       const saved = await attachCetPaperFile(initial.id, kind, file)
-      studyRef.current = saved; setStudy(saved)
       if (kind !== 'audio') setDocumentKind(kind)
+      return saved
     })
   }
 
   async function submit() {
     await action(async () => {
       const saved = await submitCetPaperStudy(initial.id)
-      studyRef.current = saved; setStudy(saved)
       setTab('review')
+      return saved
     })
   }
 
@@ -230,7 +162,7 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
             <legend className="text-bright">{group.name} · {group.start + 1}–{group.end}</legend>
             <div className="cet-paper-answer-grid">{Array.from({ length: group.end - group.start }, (_, offset) => {
               const index = group.start + offset
-              return <label key={index}><span>{index + 1}</span><select className="pixel-input" aria-label={`第 ${index + 1} 题答案`} value={draft.answers[index]} onChange={(event) => update({ answers: draftRef.current.answers.map((value, i) => i === index ? event.target.value : value) })}>
+              return <label key={index}><span>{index + 1}</span><select className="pixel-input" aria-label={`第 ${index + 1} 题答案`} value={draft.answers[index]} onChange={(event) => choose(index + 1, event.target.value)}>
                 <option value="">未答</option>{Array.from({ length: group.letters }, (_, i) => String.fromCharCode(65 + i)).map((letter) => <option key={letter} value={letter}>{letter}</option>)}
               </select></label>
             })}</div>
@@ -247,9 +179,9 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
         </>}
         {tab === 'writing' && <>
           <h3 className="cet-paper-section-title text-bright">把原卷上的任务，写成自己的表达</h3>
-          <p className="text-dim">先在原卷核对题目要求与字数。完成后对照原站参考解析，检查内容、结构和表达，再回到草稿修订。</p>
-          <label className="cet-paper-field cet-paper-output">写作草稿<textarea className="pixel-input" lang="en" rows={10} value={draft.writingDraft} disabled={busy} placeholder="按这套原卷的写作要求开始…" onChange={(event) => update({ writingDraft: event.target.value })} /><span className="text-dim">{draft.writingDraft.trim() ? draft.writingDraft.trim().split(/\s+/).length : 0} 个空白分隔词 · 仅供写作长度参考</span></label>
-          <label className="cet-paper-field cet-paper-output">翻译草稿<textarea className="pixel-input" lang="en" rows={8} value={draft.translationDraft} disabled={busy} placeholder="读原卷中的中文段落，再写出自己的译文…" onChange={(event) => update({ translationDraft: event.target.value })} /></label>
+          <p className="text-dim">先在原卷核对题目要求与字数。完成后打开「原卷与录音」中的参考 PDF，检查内容、结构和表达，再手动选择草稿段落对照修订。</p>
+          <section className="cet-paper-output" aria-label="写作修订练习"><OutputRevisionEditor kind="writing" initialText={draft.writingDraft} onInitialChange={(text) => update({ writingDraft: text })} revision={draft.writingRevision} onRevisionChange={(next) => update({ writingRevision: next })} initialLabel="写作草稿" revisionLabel="写作修订稿" reference={[]} referenceTitle="参考资料与草稿对照" disabled={busy} /></section>
+          <section className="cet-paper-output" aria-label="翻译修订练习"><OutputRevisionEditor kind="translation" initialText={draft.translationDraft} onInitialChange={(text) => update({ translationDraft: text })} revision={draft.translationRevision} onRevisionChange={(next) => update({ translationRevision: next })} initialLabel="翻译草稿" revisionLabel="翻译修订稿" reference={[]} referenceTitle="参考资料与草稿对照" disabled={busy} /></section>
           <p className="text-dim">草稿自动保存在本机。这里不自动评分，可在复盘中记下修改原因与想复用的表达。</p>
         </>}
         {tab === 'review' && <>
@@ -263,6 +195,7 @@ export function CetPaperWorkspace({ source, initial, onClose }: { source: CetPap
       </div>
       <footer className="cet-paper-footer">
         <div className="readable cet-paper-save-status"><p role="status" aria-live="polite" className={saveState === 'error' ? 'text-fail' : 'text-dim'}>{saveState === 'saved' ? '已保存到本机' : saveState === 'saving' ? '正在保存…' : saveState === 'error' ? '保存未完成，请重试' : '有新编辑，稍后自动保存'}{keyText.trim() ? ' · 参考答案文本尚未应用' : ''}</p>{error && <p className="text-fail" role="alert">{error}</p>}</div>
+        {conflict && <div className="cet-paper-inline-actions" role="group" aria-label="处理草稿冲突"><PixelButton disabled={busy} onClick={() => resolveConflict(true)}>保留本页修改并保存</PixelButton><PixelButton disabled={busy} onClick={() => resolveConflict(false)}>放弃本页修改，载入另一页</PixelButton></div>}
         <PixelButton disabled={busy} onClick={() => void action(async () => undefined)}>保存</PixelButton>
         <PixelButton variant="primary" disabled={busy} onClick={() => closeRef.current()}>{busy ? '正在处理…' : '保存并返回'}</PixelButton>
       </footer>
