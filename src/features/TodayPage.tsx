@@ -14,6 +14,8 @@ import { useBattle } from '../state/battle'
 import { useStudyClock } from '../state/useStudyClock'
 import { buildWeeklyReport, markWeeklySeen, weeklySeen, type WeeklyReport } from '../core/weekly'
 import { DEFAULT_DAILY_NEW_TARGET, isFamiliar } from '../core/vocabProgress'
+import { buildCetStudyPlan } from '../core/cetStudyPlan'
+import { CET_PAPER_SOURCES } from '../data/cetPaperSources'
 import type { BookId } from '../types/model'
 
 const MASCOT_LINES = ['每天认几个词，慢慢就有了积累。', '今天也要加油哦。', '我闻到新单词的味道了。', '复习比新词更重要呢。', '准备好了就一起出发吧。']
@@ -49,6 +51,11 @@ export function TodayPage() {
     return db.stats.where('fsrs.due').belowOrEqual(now).filter((s) => s.fsrs.reps > 0 && ids.has(s.wordId) && !isFamiliar(profile ?? undefined, s.wordId)).count()
   }, [effectiveBook, now, profile?.familiarWords])
   const quests = useLiveQuery(() => getTodayQuests(), [day, now])
+  const targetLevel = profile?.examType ?? 'cet4'
+  const paperStudies = useLiveQuery(async () => {
+    const sourceIds = new Set(CET_PAPER_SOURCES.filter((source) => source.level === targetLevel).map((source) => source.id))
+    return (await db.cetPapers.toArray()).filter((study) => sourceIds.has(study.sourceId))
+  }, [targetLevel])
   const recentDays = useLiveQuery(async () => {
     const keys = Array.from({ length: 7 }, (_, i) => dateKeyOffset(i - 6, new Date(now)))
     const rows = await db.dailyLogs.bulkGet(keys)
@@ -73,6 +80,7 @@ export function TodayPage() {
   const line = MASCOT_LINES[Number(day.split('-').join('')) % MASCOT_LINES.length]
   const recentTotal = recentDays?.reduce((sum, d) => sum + (d.log ? d.log.newLearned + d.log.reviewsDone : 0), 0) ?? 0
   const recentMax = Math.max(1, ...(recentDays?.map((d) => (d.log?.newLearned ?? 0) + (d.log?.reviewsDone ?? 0)) ?? []))
+  const studyPlan = paperStudies === undefined ? undefined : buildCetStudyPlan({ examDate: profile?.examDate, cetFoundation: profile?.cetFoundation }, paperStudies, new Date(now))
 
   async function start() {
     if (startLock.current) return
@@ -123,6 +131,27 @@ export function TodayPage() {
       </div>
 
       <p className="text-px12 text-dim">备考目标 {profile?.examType === 'cet6' ? 'CET-6' : 'CET-4'} · 主学词书 {bookName(effectiveBook)}</p>
+
+      <section aria-labelledby="weekly-study-focus-title" aria-busy={studyPlan === undefined}>
+        <Panel className="!p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 basis-64">
+              <h2 id="weekly-study-focus-title" className="text-px12 text-gold">本周建议主攻</h2>
+              {studyPlan ? <>
+                <p className="readable mt-2 text-[17px] font-semibold leading-relaxed text-bright">{studyPlan.stageLabel} · {studyPlan.title}</p>
+                <p className="readable mt-2 text-[16px] leading-relaxed text-dim">{studyPlan.stageReason} {studyPlan.reason}</p>
+                {studyPlan.coverageNote && <p className="readable mt-1 text-[16px] leading-relaxed text-dim">{studyPlan.coverageNote}</p>}
+              </> : <p className="readable mt-2 text-[16px] leading-relaxed text-dim">正在读取本机练习记录…</p>}
+            </div>
+            {studyPlan && <PixelButton size="sm" icon="target" onClick={() => {
+              if (studyPlan.target === 'vocabulary') setTab('words')
+              else if (studyPlan.target === 'listening') setTab('listening')
+              else openCetPrep()
+            }}>{studyPlan.target === 'vocabulary' ? '去巩固词汇' : studyPlan.target === 'listening' ? '去练听力' : studyPlan.section?.pending ? '去备考台订正' : '去练真题'}</PixelButton>}
+          </div>
+          <p className="readable mt-3 border-t-2 border-edge pt-2 text-[16px] leading-relaxed text-dim">依据你的选项与本机练习记录安排，不是能力诊断；所有功能都可直接使用。</p>
+        </Panel>
+      </section>
 
       <div className="today-layout">
         <Panel className="flex flex-col !border-gold !p-4 md:!p-5">

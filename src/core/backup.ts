@@ -139,6 +139,9 @@ function profilePatch(local: Profile, remote: Record<string, unknown>, restoreSe
     }
     if (remote.examType === 'cet4' || remote.examType === 'cet6') patch.examType = remote.examType
     if (date(remote.examDate)) patch.examDate = date(remote.examDate)
+    if (remote.cetFoundation === 'building' || remote.cetFoundation === 'steady' || remote.cetFoundation === 'ready') {
+      patch.cetFoundation = remote.cetFoundation
+    }
     if (typeof remote.studyBook === 'string' && ['cet4-core', 'cet4-full', 'cet6-core', 'cet6-full', 'ky-core', 'ielts-core'].includes(remote.studyBook)) {
       patch.studyBook = remote.studyBook
     }

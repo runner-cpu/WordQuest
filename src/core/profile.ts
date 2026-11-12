@@ -39,6 +39,9 @@ export async function ensureProfile(): Promise<Profile> {
 }
 
 export async function patchProfile(patch: Partial<Profile>): Promise<Profile> {
+  if (patch.cetFoundation !== undefined && !['building', 'steady', 'ready'].includes(patch.cetFoundation)) {
+    throw new Error('请选择有效的基础自述选项')
+  }
   const cur = await ensureProfile()
   const next = { ...cur, ...patch }
   await db.profile.put(next)

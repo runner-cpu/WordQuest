@@ -131,6 +131,8 @@ export interface Profile {
   mascot: MascotState
   examType?: 'cet4' | 'cet6'
   examDate?: string
+  /** 用户自述的练习基础，仅用于调整建议，不作为能力诊断。 */
+  cetFoundation?: 'building' | 'steady' | 'ready'
   dailyNewTarget: number
   onboarded: boolean
   deviceId: string

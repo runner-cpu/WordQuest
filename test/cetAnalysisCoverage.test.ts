@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildCetAnalysisCoverage } from '../src/core/cetAnalysisCoverage.ts'
 import type { CetPaperStudy } from '../src/types/cetPaper.ts'
+import { emptyOutputRevision } from '../src/core/outputRevision.ts'
 
 const revision = '4222c1c11c62fb7c'
 const study = (patch: Partial<CetPaperStudy> = {}): CetPaperStudy => ({
@@ -38,4 +39,11 @@ test('unmatched and unpinned paper editions never borrow explanations from anoth
     study({ id: 'unpinned', paperRevision: undefined, answers: answers(48) }),
   ]
   assert.deepEqual(buildCetAnalysisCoverage(studies), { answered: 3, covered: 0, verified: 0, pendingReview: 0 })
+})
+
+test('analysis coverage uses the same latest revision-only activity as the paper report', () => {
+  const old = study({ answers: answers(46, 47) })
+  const revised = study({ id: 'revised', updatedAt: 3, writingRevision: { ...emptyOutputRevision(3), text: 'A separate revision.' } })
+  const blank = study({ id: 'empty', updatedAt: 4, writingRevision: emptyOutputRevision(4) })
+  assert.deepEqual(buildCetAnalysisCoverage([old, revised, blank]), { answered: 0, covered: 0, verified: 0, pendingReview: 0 })
 })

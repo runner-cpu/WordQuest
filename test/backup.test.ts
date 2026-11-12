@@ -164,6 +164,35 @@ test('backup: familiar recovery flags merge on a studied device and stale backup
   assert.deepEqual(fixture.get<Profile>('profile', 'me')!.familiarWords, restored.familiarWords)
 })
 
+test('backup: optional self reported CET foundations restore only with settings and older backups preserve a local choice', async (t) => {
+  const local = { ...defaultProfile(), cetFoundation: 'building' as const }
+  const fixture = databaseFixture(t, { profile: [local] })
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [{ ...defaultProfile(), cetFoundation: 'ready' }] } }))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'ready')
+  assert.equal((await importBackup(backupFile({ schemaVersion: 10, data: { reviewLogs: [], profile: [defaultProfile()] } }))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'ready')
+  const exported = await exportBackup()
+  assert.equal(exported.schemaVersion, 11)
+  fixture.reset({})
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'ready')
+  fixture.reset({ profile: [{ ...local, xp: 1 }] })
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [{ ...defaultProfile(), cetFoundation: 'ready' }] } }))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'building')
+})
+
+test('backup: omitted and invalid foundation values do not create a self report or discard a valid local setting', async (t) => {
+  const fixture = databaseFixture(t)
+  for (const cetFoundation of [undefined, null, 'expert', true, 1]) {
+    fixture.reset({})
+    assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [{ ...defaultProfile(), cetFoundation }] } }))).ok, true)
+    assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, undefined)
+    fixture.reset({ profile: [{ ...defaultProfile(), cetFoundation: 'steady' }] })
+    assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [{ ...defaultProfile(), cetFoundation }] } }))).ok, true)
+    assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'steady')
+  }
+})
+
 test('backup: replay derives exact production counts and rejects snapshot-only mastery evidence', async (t) => {
   const at = new Date(2026, 9, 1).getTime()
   const reviews: ReviewLog[] = [
@@ -349,7 +378,7 @@ test('backup: export/import on a clean device restores settings, inventory, ques
     cetPractice: [cetReading(), cetOutput()],
   })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 10)
+  assert.equal(exported.schemaVersion, 11)
   const localWord = { ...word, definition: '本地修订释义', bookId: 'cet4-core', unitId: 1, bookUnits: undefined }
   fixture.reset({
     words: [localWord],
@@ -717,7 +746,7 @@ test('backup: original and paper revisions round trip their separate text, reaso
     translationDraft: 'Initial translation.', translationRevision: checkedOutputRevision('Initial translation.', 'Revised translation.', 270) })
   const fixture = databaseFixture(t, { cetPractice: [original], cetPapers: [paper] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 10)
+  assert.equal(exported.schemaVersion, 11)
   assert.deepEqual(exported.data.cetPractice, [original])
   assert.deepEqual(exported.data.cetPapers, [paper])
   fixture.reset({})
@@ -834,7 +863,7 @@ test('backup: real-paper cards, independent submissions and local documents surv
   const study = paperStudy({ files: { paper: ref } })
   const fixture = databaseFixture(t, { cetPapers: [study], media: [{ id: ref.id, blob: paperPdf }] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 10)
+  assert.equal(exported.schemaVersion, 11)
   assert.deepEqual(exported.data.cetPapers, [study])
   assert.equal(exported.data.media[0].type, 'application/pdf')
   fixture.reset({})

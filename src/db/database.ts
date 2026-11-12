@@ -111,12 +111,16 @@ export class WordQuestDB extends Dexie {
     this.version(10).stores({}).upgrade(async (transaction) => {
       await transaction.table<Profile>('profile').toCollection().modify((profile) => { profile.schemaVersion = 10 })
     })
+    // v11：基础自述是可选偏好，不替旧账户选择，也不改动其他设置或学习历史。
+    this.version(11).stores({}).upgrade(async (transaction) => {
+      await transaction.table<Profile>('profile').toCollection().modify((profile) => { profile.schemaVersion = 11 })
+    })
   }
 }
 
 export const db = new WordQuestDB()
 
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 11
 
 export function todayKey(d = new Date()): string {
   const y = d.getFullYear()

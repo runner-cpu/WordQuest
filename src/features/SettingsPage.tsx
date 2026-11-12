@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { exportBackup, todayKey } from '../db/database'
 import { BOOKS, ensureSeedBook, importedBookCounts } from '../core/wordbook'
 import { ensureProfile, patchProfile } from '../core/profile'
 import { importBackup } from '../core/backup'
 import { buildStudyReminderIcs, downloadIcs } from '../core/ics'
-import { examDateInfo, formatExamDate, upcomingExamSessions } from '../core/exam'
 import { Panel, PixelButton, SectionHead } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
 import { useUi } from '../state/ui'
@@ -15,6 +14,7 @@ import { formatBytes, storageInfo, type StorageInfo } from '../core/storage'
 import { HUE_PRESETS, applyCustomHue, clearCustomHue, customTokens } from '../core/customTheme'
 import { DEFAULT_DAILY_NEW_TARGET } from '../core/vocabProgress'
 import type { BookId } from '../types/model'
+import { PlanningPreferences, type PlanningPreferencesValue } from './PlanningPreferences'
 
 import { THEMES, STYLES, applyTheme, applyStyle, readAppearance, rememberAppearance } from '../ui/theme'
 export { THEMES, STYLES, applyTheme, applyStyle } from '../ui/theme'
@@ -25,7 +25,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const pushToast = useUi((s) => s.pushToast)
   const [muted, setMutedState] = useState(isMuted())
   const [scanlines, setScanlines] = useState(() => readAppearance('wq:scanlines') !== 'off')
-  const [customDate, setCustomDate] = useState(false)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState<BookId | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<{ done: number; total: number } | null>(null)
@@ -35,8 +34,13 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const dataLock = useRef(false)
   const studyChangeLock = useRef(false)
   const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [planningDraft, setPlanningDraft] = useState<PlanningPreferencesValue>(() => ({ examDate: profile?.examDate, cetFoundation: profile?.cetFoundation }))
+  const [planningStatus, setPlanningStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const planningCurrent = useRef(planningDraft)
+  const planningDirty = useRef(false)
+  const planningGeneration = useRef(0)
+  const planningQueue = useRef(Promise.resolve())
 
-  const sessions = useMemo(() => upcomingExamSessions(4), [])
   const downloaded = useLiveQuery(importedBookCounts, [])
 
   useEffect(() => {
@@ -47,6 +51,13 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
     void storageInfo().then(setStorage)
   }, [])
 
+  useEffect(() => {
+    if (!profile || planningDirty.current) return
+    const next = { examDate: profile.examDate, cetFoundation: profile.cetFoundation }
+    planningCurrent.current = next
+    setPlanningDraft(next)
+  }, [profile?.examDate, profile?.cetFoundation])
+
   async function save(patch: Parameters<typeof patchProfile>[0]) {
     try {
       const next = await patchProfile(patch)
@@ -56,6 +67,29 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       pushToast('设置未能保存，请重试')
       return null
     }
+  }
+
+  function savePlanning() {
+    const snapshot = { ...planningCurrent.current }
+    const generation = planningGeneration.current
+    setPlanningStatus('saving')
+    // Keep both local fields together and serialize writes: a rapid date/select change must not read an older profile twice.
+    planningQueue.current = planningQueue.current.then(async () => {
+      const result = await save(snapshot)
+      if (generation !== planningGeneration.current) return
+      if (result) {
+        planningDirty.current = false
+        setPlanningStatus('saved')
+      } else setPlanningStatus('failed')
+    })
+  }
+
+  function changePlanning(patch: Partial<PlanningPreferencesValue>) {
+    planningCurrent.current = { ...planningCurrent.current, ...patch }
+    planningDirty.current = true
+    planningGeneration.current++
+    setPlanningDraft(planningCurrent.current)
+    savePlanning()
   }
 
   async function switchBook(bookId: BookId) {
@@ -148,7 +182,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const ownedThemes = ownedThemeList(profile)
   const theme = profile?.theme ?? readAppearance('wq:theme') ?? 'night'
   const studyBook = profile?.studyBook ?? (profile?.examType === 'cet6' ? 'cet6-core' : 'cet4-core')
-  const dateInfo = examDateInfo(profile?.examDate)
 
   return (
     <div className="space-y-4 p-3 pb-6 md:p-5 md:pb-8">
@@ -255,55 +288,11 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             </div>
           </Field>
 
-          <Field label="计划考试日期">
-            <p className="readable mb-2 text-px12 text-dim">已公布场次附官方来源，预计场次仅供规划。参加考试请按报名通知与准考证安排。</p>
-            <div className="space-y-1">
-              {sessions.map((s) => {
-                const picked = profile?.examDate === s.date
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => void save({ examDate: s.date })}
-                    aria-pressed={picked}
-                    className={`flex w-full items-center justify-between gap-2 border-2 px-2 py-2 text-left text-px12 ${
-                      picked ? 'border-gold bg-panel-2 text-bright' : 'border-edge text-dim'
-                    }`}
-                  >
-                    <span className="text-bright">{s.label} · {s.status === 'confirmed' ? '官方已公布' : '预计'}</span>
-                    <span className="tnum">
-                      {s.date.slice(5)} · 还有 {s.daysLeft} 天
-                    </span>
-                  </button>
-                )
-              })}
-              <button
-                onClick={() => setCustomDate((v) => !v)}
-                aria-expanded={customDate}
-                className={`flex w-full items-center justify-between border-2 px-2 py-2 text-px12 ${
-                  customDate ? 'border-gold text-bright' : 'border-edge text-dim'
-                }`}
-              >
-                <span>其他日期</span>
-                <span>{customDate ? '收起' : '手动选择'}</span>
-              </button>
-              {customDate && (
-                <input
-                  type="date"
-                  value={profile?.examDate ?? ''}
-                  onChange={(e) => void save({ examDate: e.target.value || undefined })}
-                  className="pixel-input w-full px-2 py-2"
-                  aria-label="自定义计划考试日期"
-                />
-              )}
-            </div>
-            {profile?.examDate && (
-              <div className="mt-2 space-y-1 text-px12">
-                <p className="text-gold">计划日期：{formatExamDate(profile.examDate)}</p>
-                <p className="text-dim">{dateInfo.label}</p>
-                {dateInfo.source && <a className="text-gold underline" href={dateInfo.source} target="_blank" rel="noreferrer">官方通知 · 核对于 {dateInfo.checkedAt}</a>}
-              </div>
-            )}
-          </Field>
+          <PlanningPreferences {...planningDraft} disabled={!profile} onChange={changePlanning} />
+          {planningStatus === 'failed' ? <div className="readable space-y-2 text-[16px] leading-relaxed">
+            <p className="text-fail" role="alert">学习规划暂未保存，输入已保留。请重试保存。</p>
+            <PixelButton size="sm" onClick={savePlanning}>重试保存学习规划</PixelButton>
+          </div> : planningStatus !== 'idle' && <p className="readable text-[16px] leading-relaxed text-dim" role="status">{planningStatus === 'saving' ? '正在保存学习规划…' : '学习规划已保存到本机'}</p>}
         </div>
       </Panel>
 

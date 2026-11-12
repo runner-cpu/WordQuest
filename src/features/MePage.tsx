@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import { AchievementGallery } from './AchievementGallery'
 import { RANKS, rankFromPower, levelProgress } from '../core/game'
 import { ensureProfile, patchProfile } from '../core/profile'
-import { examDateInfo, formatExamDate, upcomingExamSessions } from '../core/exam'
 import { Mascot, Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pixel'
 import type { Profile } from '../types/model'
 import { Icon } from '../ui/icons'
@@ -13,6 +12,7 @@ import { useUi } from '../state/ui'
 import { ensureSeedBook } from '../core/wordbook'
 import { SHOP_ITEMS, applyPurchase, canBuy } from '../core/shop'
 import { DEFAULT_DAILY_NEW_TARGET } from '../core/vocabProgress'
+import { PlanningPreferences } from './PlanningPreferences'
 
 export function MePage({
   onOpenSettings,
@@ -81,8 +81,9 @@ export function MePage({
         {profile?.dormancy && <div className="mt-2 text-px12 text-dim">好久没复习了，回访继续积累</div>}
       </Panel>
 
-      {!profile?.onboarded && (
+      {profile && !profile.onboarded && (
         <Onboarding
+          initial={profile}
           onDone={async (patch) => {
             const next = await patchProfile({ ...patch, onboarded: true })
             setProfile(next)
@@ -194,7 +195,7 @@ export function MePage({
       <Panel>
         <SectionHead>设置与数据</SectionHead>
         <p className="readable mb-2 text-px12 text-dim">
-          词书、每日新词量、备考目标、计划考试日期、主题、音效和备份都在设置里。
+          词书、每日新词量、备考目标、考试日期、自述基础、主题、音效和备份都在设置里。
         </p>
         <PixelButton className="w-full" variant="primary" icon="target" onClick={onOpenSettings}>
           打开设置
@@ -223,17 +224,15 @@ function Mini({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Onboarding({ onDone }: { onDone: (patch: Record<string, unknown>) => Promise<void> }) {
+function Onboarding({ initial, onDone }: { initial: Profile; onDone: (patch: Record<string, unknown>) => Promise<void> }) {
   const [step, setStep] = useState(0)
-  const [examType, setExamType] = useState<'cet4' | 'cet6'>('cet4')
-  const [examDate, setExamDate] = useState('')
-  const [customDate, setCustomDate] = useState(false)
-  const [dailyNew, setDailyNew] = useState(DEFAULT_DAILY_NEW_TARGET)
-  const [name, setName] = useState('阿词')
+  const [examType, setExamType] = useState<'cet4' | 'cet6'>(initial.examType ?? 'cet4')
+  const [examDate, setExamDate] = useState(initial.examDate ?? '')
+  const [cetFoundation, setCetFoundation] = useState(initial.cetFoundation)
+  const [dailyNew, setDailyNew] = useState(initial.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET)
+  const [name, setName] = useState(initial.mascot.name || '阿词')
   /** 提交中禁用「开始冒险」，防止双击重复写词书下载 */
   const [submitting, setSubmitting] = useState(false)
-  const sessions = useMemo(() => upcomingExamSessions(4), [])
-  const dateInfo = examDateInfo(examDate)
 
   const steps = [
     <div key="1" className="space-y-3">
@@ -253,62 +252,10 @@ function Onboarding({ onDone }: { onDone: (patch: Record<string, unknown>) => Pr
         </div>
       </div>
 
-      <div>
-        <div className="mb-1 text-px12 text-bright">选择计划考试日期</div>
-        <p className="readable mb-2 text-px12 text-dim">
-          已公布场次附官方来源；其他日期为预计，仅供规划。参加考试请按报名通知与准考证安排。
-        </p>
-        <div className="space-y-1">
-          {sessions.map((s) => {
-            const picked = examDate === s.date
-            return (
-              <button
-                key={s.id}
-                onClick={() => {
-                  setExamDate(s.date)
-                  setCustomDate(false)
-                }}
-                aria-pressed={picked}
-                className={`flex w-full items-center justify-between gap-2 border-2 px-2 py-2 text-left text-px12 ${
-                  picked ? 'border-gold bg-panel-2 text-bright' : 'border-edge text-dim'
-                }`}
-              >
-                <span className="text-bright">{s.label} · {s.status === 'confirmed' ? '官方已公布' : '预计'}</span>
-                <span className="tnum">
-                  {s.date.slice(5)} · 还有 {s.daysLeft} 天
-                </span>
-              </button>
-            )
-          })}
-          <button
-            onClick={() => setCustomDate((v) => !v)}
-            aria-expanded={customDate}
-            className={`flex w-full items-center justify-between border-2 px-2 py-2 text-px12 ${
-              customDate ? 'border-gold text-bright' : 'border-edge text-dim'
-            }`}
-          >
-            <span>其他日期</span>
-            <span>{customDate ? '收起' : '手动选择'}</span>
-          </button>
-          {customDate && (
-            <input
-              id="exam-date"
-              type="date"
-              value={examDate}
-              onChange={(e) => setExamDate(e.target.value)}
-              className="pixel-input w-full px-2 py-2"
-              aria-label="自定义计划考试日期"
-            />
-          )}
-        </div>
-        {examDate && (
-          <div className="mt-2 space-y-1 text-px12">
-            <p className="text-gold">计划日期：{formatExamDate(examDate)}</p>
-            <p className="text-dim">{dateInfo.label}</p>
-            {dateInfo.source && <a className="text-gold underline" href={dateInfo.source} target="_blank" rel="noreferrer">官方通知 · 核对于 {dateInfo.checkedAt}</a>}
-          </div>
-        )}
-      </div>
+      <PlanningPreferences examDate={examDate || undefined} cetFoundation={cetFoundation} onChange={(patch) => {
+        if ('examDate' in patch) setExamDate(patch.examDate ?? '')
+        if ('cetFoundation' in patch) setCetFoundation(patch.cetFoundation)
+      }} />
     </div>,
     <div key="2" className="space-y-2">
       <div className="text-px12 text-bright">每天想学多少新词</div>
@@ -364,6 +311,7 @@ function Onboarding({ onDone }: { onDone: (patch: Record<string, unknown>) => Pr
                 examType,
                 studyBook: examType === 'cet6' ? 'cet6-core' : 'cet4-core',
                 examDate: examDate || undefined,
+                cetFoundation,
                 dailyNewTarget: dailyNew,
                 mascot: { name: name || '阿词', skin: 'default' },
               })
