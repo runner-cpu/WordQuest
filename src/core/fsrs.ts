@@ -26,7 +26,7 @@ export const scheduler = fsrs(params)
 export { Rating, State }
 export type { Card }
 
-/** 掌握阈值：进入 Review 且间隔 ≥ 21 天即视为「掌握」（§5.1） */
+/** 掌握还需日志中至少一次准确产出；间隔门槛沿用原 FSRS 规则。 */
 export const MASTERED_MIN_INTERVAL_DAYS = 21
 
 export function emptySnapshot(now = Date.now()): FsrsSnapshot {
@@ -93,9 +93,9 @@ export function schedule(snap: FsrsSnapshot, rating: Grade, now = Date.now()): F
 }
 
 /** 由 FSRS 状态推导业务状态 */
-export function deriveState(snap: FsrsSnapshot): WordState {
+export function deriveState(snap: FsrsSnapshot, productionCorrectCount = 0): WordState {
   if (snap.reps === 0) return 'new'
-  if (snap.state === State.Review && snap.scheduled_days >= MASTERED_MIN_INTERVAL_DAYS) return 'mastered'
+  if (snap.state === State.Review && snap.scheduled_days >= MASTERED_MIN_INTERVAL_DAYS && productionCorrectCount > 0) return 'mastered'
   if (snap.state === State.Review) return 'review'
   return 'learning'
 }

@@ -9,6 +9,7 @@ import { ADVENTURE_SCENE_IDS } from '../data/adventureIds'
 import { isCetPracticeRecord, mergeCetPracticeRecords } from './cetPractice'
 import { isCetPaperStudy, mergeCetPaperStudies, validateCetPaperFile } from './cetPapers'
 import { isCetRewardProgress, mergeCetRewardProgress } from './cetRewards'
+import { countProductionCorrect, mergeFamiliarWords } from './vocabProgress'
 import type { CetPaperFileKind, CetPaperFileRef, CetPaperStudy } from '../types/cetPaper'
 import type { AdventureProgress, CetPracticeRecord, DailyLog, DailyQuest, ExpressionProgress, FsrsSnapshot, Profile, ReviewLog, UserWordStat, Word } from '../types/model'
 
@@ -125,6 +126,10 @@ function profilePatch(local: Profile, remote: Record<string, unknown>, restoreSe
   // 奖励凭据是不可回退的学习历史，不受是否恢复本机设置影响；旧备份缺字段时保留本地。
   if (isCetRewardProgress(remote.cetRewardProgress)) {
     patch.cetRewardProgress = mergeCetRewardProgress(local.cetRewardProgress, remote.cetRewardProgress)
+  }
+  // 熟词是可恢复的队列记录，不是首次设置；有学习历史时也逐词合并。
+  if (local.familiarWords !== undefined || remote.familiarWords !== undefined) {
+    patch.familiarWords = mergeFamiliarWords(local.familiarWords, remote.familiarWords)
   }
   if (restoreSettings) {
     patch.theme = remoteTheme ?? local.theme
@@ -327,7 +332,9 @@ async function mergeBackupData(data: NonNullable<BackupPayload['data']>, paperMe
     const existing = new Set(await db.stats.toCollection().primaryKeys())
     const missing = data.stats.filter((s) => s?.wordId && s.fsrs &&
       Number.isFinite(s.fsrs.due) && Number.isFinite(s.fsrs.reps) && !existing.has(s.wordId))
-    if (missing.length > 0) await db.stats.bulkPut(missing)
+    if (missing.length > 0) await db.stats.bulkPut(missing.map((stat) => ({
+      ...stat, productionCorrectCount: 0, state: deriveState(stat.fsrs, 0),
+    })))
   }
 
   // 已开箱状态取并集；恢复后不能再次领取同一天的奖励。
@@ -542,12 +549,14 @@ export async function rebuildStatsFromLogs(): Promise<number> {
       if (log.correct) correctCount++
       else mistakeCount++
     }
+    const productionCorrectCount = countProductionCorrect(list)
     nextStats.push({
       wordId,
       fsrs: snap,
-      state: deriveState(snap),
+      state: deriveState(snap, productionCorrectCount),
       mistakeCount,
       correctCount,
+      productionCorrectCount,
       firstSeenAt: list[0].reviewedAt,
       lastReviewedAt: list[list.length - 1].reviewedAt,
     })

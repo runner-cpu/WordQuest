@@ -18,14 +18,18 @@ test('schedule: 答错后 due 不应晚于答对', async () => {
   assert.ok(again.due <= good.due, `again(${again.due}) 应早于 good(${good.due})`)
 })
 
-test('deriveState: reps=0 为 new，长间隔为 mastered', async () => {
+test('deriveState: 掌握需长复习间隔和至少一次准确产出，选择题不能单独达标', async () => {
   const { deriveState } = await import('../src/core/fsrs.ts')
   const now = Date.now()
   assert.equal(deriveState({ due: now, stability: 0, difficulty: 0, elapsed_days: 0, scheduled_days: 0, reps: 0, lapses: 0, state: 0 }), 'new')
   assert.equal(
-    deriveState({ due: now + 30 * 86400000, stability: 40, difficulty: 5, elapsed_days: 5, scheduled_days: 30, reps: 3, lapses: 0, state: 2 }),
+    deriveState({ due: now + 30 * 86400000, stability: 40, difficulty: 5, elapsed_days: 5, scheduled_days: 30, reps: 3, lapses: 0, state: 2 }, 1),
     'mastered',
   )
+  const longReview = { due: now + 30 * 86400000, stability: 40, difficulty: 5, elapsed_days: 5, scheduled_days: 30, reps: 3, lapses: 0, state: 2 }
+  assert.equal(deriveState(longReview), 'review', 'legacy snapshots without production evidence remain reviewable')
+  assert.equal(deriveState(longReview, 0), 'review', 'two correct choices still cannot prove production')
+  assert.equal(deriveState({ ...longReview, scheduled_days: 7 }, 2), 'review', 'production does not replace the FSRS interval threshold')
 })
 
 test('autoRating: 答错必为 Again，秒答为 Easy', async () => {

@@ -11,6 +11,7 @@ import { bumpDaily, ensureProfile, patchProfile, recomputePower, uid } from '../
 import type { ReviewLog, ReviewMode, UserWordStat, Word } from '../types/model'
 import { wordInBooks, wordsForBook } from './wordbook'
 import { settleStreak } from './progress'
+import { countProductionCorrect, isFamiliar } from './vocabProgress'
 import type { BookId } from '../types/model'
 
 export type QuestionKind = 'choice-word' | 'choice-meaning' | 'spell' | 'listen-meaning' | 'listen-spell'
@@ -138,13 +139,51 @@ export interface SessionPlan {
   news: Word[]
 }
 
+export interface SessionQueueItem {
+  word: Word
+  isReview: boolean
+  stage: 'review' | 'introduce' | 'produce' | 'retry'
+}
+
+/** Recognition introduces a new word; a separate production turn is always retained in this round. */
+export function buildSessionQueue(reviews: readonly Word[], news: readonly Word[]): SessionQueueItem[] {
+  const seen = new Set<string>()
+  const unique = (words: readonly Word[]) => words.filter((word) => {
+    if (seen.has(word.id)) return false
+    seen.add(word.id)
+    return true
+  })
+  const due = unique(reviews)
+  const fresh = unique(news)
+  return [
+    ...due.map((word): SessionQueueItem => ({ word, isReview: true, stage: 'review' })),
+    ...fresh.map((word): SessionQueueItem => ({ word, isReview: false, stage: 'introduce' })),
+    ...fresh.map((word): SessionQueueItem => ({ word, isReview: true, stage: 'produce' })),
+  ]
+}
+
+/** Missing production evidence always asks for recall, regardless of the random sample. */
+export function selectSessionQuestionKind(item: SessionQueueItem, productionCorrectCount: number, random: number): QuestionKind {
+  const sample = Math.abs(Math.trunc(Number.isFinite(random) ? random : 0)) % 6
+  if (item.stage === 'introduce') return sample % 2 === 0 ? 'choice-meaning' : 'choice-word'
+  if (item.stage === 'produce' || item.stage === 'retry' || productionCorrectCount <= 0) return sample % 2 === 0 ? 'spell' : 'listen-spell'
+  return sample <= 2 ? 'spell' : sample === 3 ? 'listen-spell' : sample === 4 ? 'listen-meaning' : 'choice-meaning'
+}
+
+/** Mandatory production is part of the initial plan; optional retries cannot grow without bound. */
+export function appendSessionRetry(queue: SessionQueueItem[], item: SessionQueueItem, correct: boolean, initialWordCount: number): SessionQueueItem[] {
+  if (correct || item.stage === 'introduce' || queue.some((entry) => entry.word.id === item.word.id && entry.stage === 'retry')) return queue
+  if (queue.filter((entry) => entry.stage === 'retry').length >= Math.ceil(initialWordCount / 2)) return queue
+  return [...queue, { word: item.word, isReview: true, stage: 'retry' }]
+}
+
 /** 取今日队列：到期复习永远优先于新词（§5.1），最饥渴的（过期最久）排最前 */
 export async function planSession(bookIds: string[], newLimit: number): Promise<SessionPlan> {
   const now = Date.now()
-  const allStats = await db.stats.toArray()
+  const [allStats, profile] = await Promise.all([db.stats.toArray(), db.profile.get('me')])
 
   const dueStats = allStats
-    .filter((s) => s.fsrs.due <= now && s.fsrs.reps > 0)
+    .filter((s) => s.fsrs.due <= now && s.fsrs.reps > 0 && !isFamiliar(profile, s.wordId))
     .sort((a, b) => a.fsrs.due - b.fsrs.due)
   const dueWords = (await db.words.bulkGet(dueStats.map((s) => s.wordId))).filter(
     (w): w is Word => Boolean(w),
@@ -159,7 +198,7 @@ export async function planSession(bookIds: string[], newLimit: number): Promise<
   for (const bookId of bookIds) {
     const candidates = (await wordsForBook(bookId as BookId)).sort((a, b) => a.freqRank - b.freqRank)
     for (const w of candidates) {
-      if (learned.has(w.id)) continue
+      if (learned.has(w.id) || isFamiliar(profile, w.id)) continue
       news.push(w)
       learned.add(w.id)
       if (news.length >= remaining) break
@@ -206,19 +245,23 @@ export async function submitAnswer(input: AnswerInput): Promise<{
         ? (input.rating as number)
         : autoRating({ correct, elapsedMs, nearMiss, mode: question.kind as ReviewMode })
       const nextSnap = schedule(baseSnap, rating as 1 | 2 | 3 | 4, now)
-      const nextState = deriveState(nextSnap)
+      const previousLogs = await db.reviewLogs.where('wordId').equals(question.word.id).toArray()
+      const log: ReviewLog = {
+        id: uid(), wordId: question.word.id, rating, reviewedAt: now,
+        deviceId: profile.deviceId, elapsedMs, mode: question.kind as ReviewMode, correct,
+        ...(nearMiss ? { nearMiss: true } : {}),
+      }
+      const productionCorrectCount = countProductionCorrect([...previousLogs, log])
+      const nextState = deriveState(nextSnap, productionCorrectCount)
       const stat: UserWordStat = {
         wordId: question.word.id,
         fsrs: nextSnap,
         state: nextState,
         mistakeCount: (existing?.mistakeCount ?? 0) + (correct ? 0 : 1),
         correctCount: (existing?.correctCount ?? 0) + (correct ? 1 : 0),
+        productionCorrectCount,
         firstSeenAt: existing?.firstSeenAt ?? now,
         lastReviewedAt: now,
-      }
-      const log: ReviewLog = {
-        id: uid(), wordId: question.word.id, rating, reviewedAt: now,
-        deviceId: profile.deviceId, elapsedMs, mode: question.kind as ReviewMode, correct,
       }
       await db.stats.put(stat)
       await db.reviewLogs.add(log)
@@ -294,12 +337,14 @@ export async function overrideRating(
   }
 
   const existing = await db.stats.get(wordId)
+  const productionCorrectCount = countProductionCorrect(logs)
   const stat: UserWordStat = {
     wordId,
     fsrs: snap,
-    state: deriveState(snap),
+    state: deriveState(snap, productionCorrectCount),
     mistakeCount,
     correctCount,
+    productionCorrectCount,
     firstSeenAt: logs[0].reviewedAt,
     lastReviewedAt: logs[logs.length - 1].reviewedAt,
   }
@@ -317,12 +362,13 @@ export async function overrideRating(
 export async function todayProgress() {
   const date = todayKey()
   const now = Date.now()
+  const profile = await db.profile.get('me')
   const [daily, dueCount, masteredCount, learnedCount] = await Promise.all([
     db.dailyLogs.get(date),
     db.stats
       .where('fsrs.due')
       .belowOrEqual(now)
-      .filter((s) => s.fsrs.reps > 0)
+      .filter((s) => s.fsrs.reps > 0 && !isFamiliar(profile, s.wordId))
       .count(),
     db.stats.where('state').equals('mastered').count(),
     db.stats.filter((s) => s.fsrs.reps > 0).count(),

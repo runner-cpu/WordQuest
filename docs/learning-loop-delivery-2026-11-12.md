@@ -89,3 +89,30 @@
 
 ### 对现有基线的影响
 保留全部原测试与原音频字节，无新增依赖或用户记录清理。
+
+## 批次 D 完成报告
+
+### 改动摘要
+- 到期词没有准确拼写/听写日志时优先主动提取；新词同轮先选择接触，再有独立拼写环节。可选错题重练有上限。
+- 掌握须同时满足原 FSRS 间隔门槛与至少一次准确产出。新记录的一处笔误仍按原规则反馈和调度，但不计入产出证据；结算和成就使用统一状态。
+- 词书增加熟词快速自查，英文/释义检索、按需展开词义、标记暂停与恢复；主学习、关卡与攻坚队列均过滤，历史不删除。
+- 默认新词 10 个并标为推荐，老设置保留；今日积压提示先复习，统计显示产出覆盖及掌握依据。
+
+### 文件清单
+- 新增：src/core/vocabProgress.ts、src/features/FamiliarWords.tsx、test/vocabProgress.test.ts、test/vocabSession.test.ts、e2e/batch-d.spec.ts。
+- 修改：types/model、core/fsrs、profile、session、backup、db/database，以及 Battle、WordsPage、StatsPage、MePage、SettingsPage、TodayPage。
+- 回归：test/unit、backup、sessionPlan、sessionConcurrency、cetPapers、cetPractice、cetRewards。
+
+### 数据结构与迁移
+schema 9 保留全部旧迁移，增加可选 productionCorrectCount、日志 nearMiss 与 Profile.familiarWords。产出从日志重建，FSRS 原快照不变；更新当前战力，保留峰值、段位、余额和已获成就。熟词恢复也有时间凭据，备份逐词合并，旧备份不会复活较旧排除。仅快照且无日志不能证明产出。
+
+### 测试
+- 新增 10 项单测，195/195 通过；包括掌握门槛、产出题型、同轮队列、熟词恢复、迁移不改调度与旧备份合并。
+- 新增 3 条浏览器流程，17/17 通过；覆盖保守目标、到期提取、完成与重开一轮、新词选择后拼写、熟词暂停与恢复。
+- typecheck、build 通过。schema 数字断言更新到9，原断言保留；原仅长间隔掌握断言扩展成有/无产出两分支。
+
+### 已知边界与 TODO
+历史日志未记录 nearMiss，旧正确拼写只能按已有记录识别。熟词是自我安排标记，不代表掌握或词汇量认证；产出次数也不是能力认证。
+
+### 对现有基线的影响
+145 项原单测和6条原浏览器流程均保留并通过；不更改FSRS算法，不新增依赖。每轮按最多24个词组织，新词额外产出次数单独表达，结算词单去重。

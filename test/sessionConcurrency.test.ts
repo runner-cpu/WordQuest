@@ -25,6 +25,7 @@ test('作答等待写事务时，保留先提交的奖励与同词复习状态',
   t.mock.method(db.dailyLogs, 'get', async () => structuredClone(daily))
   t.mock.method(db.dailyLogs, 'put', async (next) => { daily = structuredClone(next); return next.date })
   t.mock.method(db.reviewLogs, 'add', async (log) => { logs.push(structuredClone(log)); return log.id })
+  t.mock.method(db.reviewLogs, 'where', () => ({ equals: () => ({ toArray: async () => structuredClone(logs) }) }))
   t.mock.method(db, 'transaction', async (...args: unknown[]) => {
     // 另一标签的奖励和该词第一次作答，在当前作答取得写锁之前提交。
     // 旧实现已在这里之前读取 profile/stat，随后会用旧快照覆盖这次提交。

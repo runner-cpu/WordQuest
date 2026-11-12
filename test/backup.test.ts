@@ -5,7 +5,7 @@ import { CET_PAPER_SOURCES } from '../src/data/cetPaperSources.ts'
 import { CET_READY_PAPERS } from '../src/core/cetReadyPapers.ts'
 import { importBackup, type BackupPayload } from '../src/core/backup.ts'
 import { defaultProfile, emptyDaily } from '../src/core/profile.ts'
-import { emptySnapshot } from '../src/core/fsrs.ts'
+import { deriveState, emptySnapshot } from '../src/core/fsrs.ts'
 import { claimChest } from '../src/core/progress.ts'
 import type { AdventureProgress, CetPracticeRecord, CetRewardQuestionProgress, DailyQuest, ExpressionProgress, Profile, ReviewLog, UserWordStat, Word } from '../src/types/model.ts'
 import type { CetPaperStudy, CetPaperSubmission } from '../src/types/cetPaper.ts'
@@ -137,6 +137,58 @@ function rewardQuestion(patch: Partial<RewardQuestion> = {}): RewardQuestion {
 function rewardKey(question: RewardQuestion): string {
   return `${question.sourceId}:${question.paperRevision}:${question.number}`
 }
+
+test('backup: familiar recovery flags merge on a studied device and stale backups cannot restore exclusions', async (t) => {
+  const local = { ...defaultProfile(), xp: 10, dailyNewTarget: 40,
+    familiarWords: { ability: { excluded: false, updatedAt: 200 } } }
+  const fixture = databaseFixture(t, { profile: [local] })
+  const payload: BackupPayload = { data: { reviewLogs: [], profile: [{ ...defaultProfile(),
+    familiarWords: { ability: { excluded: true, updatedAt: 100 }, other: { excluded: true, updatedAt: 300 } },
+  }] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  const restored = fixture.get<Profile>('profile', 'me')!
+  assert.deepEqual(restored.familiarWords, {
+    ability: { excluded: false, updatedAt: 200 }, other: { excluded: true, updatedAt: 300 },
+  })
+  assert.equal(restored.dailyNewTarget, 40, 'local settings remain while routing flags merge')
+  const before = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.deepEqual(fixture.snapshot(), before)
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [defaultProfile()] } }))).ok, true)
+  assert.deepEqual(fixture.get<Profile>('profile', 'me')!.familiarWords, restored.familiarWords)
+  const exported = await exportBackup()
+  fixture.reset({})
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.deepEqual(fixture.get<Profile>('profile', 'me')!.familiarWords, restored.familiarWords)
+})
+
+test('backup: replay derives exact production counts and rejects snapshot-only mastery evidence', async (t) => {
+  const at = new Date(2026, 9, 1).getTime()
+  const reviews: ReviewLog[] = [
+    { id: 'choice-1', wordId: word.id, mode: 'choice-word', correct: true, rating: 4, reviewedAt: at, deviceId: 'old', elapsedMs: 1000 },
+    { id: 'choice-2', wordId: word.id, mode: 'choice-meaning', correct: true, rating: 4, reviewedAt: at + 40 * 86400000, deviceId: 'old', elapsedMs: 1000 },
+    { id: 'near', wordId: word.id, mode: 'spell', correct: true, nearMiss: true, rating: 2, reviewedAt: at + 41 * 86400000, deviceId: 'old', elapsedMs: 1000 },
+  ]
+  const legacy: UserWordStat = { wordId: 'snapshot-only', fsrs: { ...emptySnapshot(at), reps: 4, state: 2, scheduled_days: 60 },
+    state: 'mastered', productionCorrectCount: 100, correctCount: 4, mistakeCount: 0, firstSeenAt: at, lastReviewedAt: at }
+  const fixture = databaseFixture(t)
+  const payload = { data: { reviewLogs: reviews, stats: [legacy], profile: [defaultProfile()] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  let replayed = fixture.get<UserWordStat>('stats', word.id)!
+  assert.equal(replayed.productionCorrectCount, 0)
+  assert.notEqual(replayed.state, 'mastered')
+  assert.equal(fixture.get<UserWordStat>('stats', legacy.wordId)!.productionCorrectCount, 0)
+  assert.equal(fixture.get<UserWordStat>('stats', legacy.wordId)!.state, 'review')
+  assert.deepEqual(fixture.get<UserWordStat>('stats', legacy.wordId)!.fsrs, JSON.parse(JSON.stringify(legacy.fsrs)))
+  reviews.push({ ...reviews[0], id: 'production', mode: 'listen-spell', reviewedAt: at + 100 * 86400000 })
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  replayed = fixture.get<UserWordStat>('stats', word.id)!
+  assert.equal(replayed.productionCorrectCount, 1)
+  assert.equal(replayed.state, deriveState(replayed.fsrs, 1))
+  const before = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.deepEqual(fixture.snapshot(), before)
+})
 
 test('backup: CET reward receipts merge by source, revision and question even when local settings are retained', async (t) => {
   const localQuestion = rewardQuestion()
@@ -295,7 +347,7 @@ test('backup: export/import on a clean device restores settings, inventory, ques
     cetPractice: [cetReading(), cetOutput()],
   })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 8)
+  assert.equal(exported.schemaVersion, 9)
   const localWord = { ...word, definition: '本地修订释义', bookId: 'cet4-core', unitId: 1, bookUnits: undefined }
   fixture.reset({
     words: [localWord],
@@ -321,7 +373,9 @@ test('backup: export/import on a clean device restores settings, inventory, ques
   assert.deepEqual(fixture.get<CetPracticeRecord>('cetPractice', 'cet4-reading-1'), exported.data.cetPractice[0])
   assert.deepEqual(fixture.get<CetPracticeRecord>('cetPractice', 'cet6-writing-1'), exported.data.cetPractice[1])
   assert.equal(await claimChest(), null, 'restored open chest cannot be claimed again')
-  assert.deepEqual(fixture.get<UserWordStat>('stats', 'legacy'), JSON.parse(JSON.stringify(legacyStat)))
+  assert.deepEqual(fixture.get<UserWordStat>('stats', 'legacy'), JSON.parse(JSON.stringify({
+    ...legacyStat, state: 'review', productionCorrectCount: 0,
+  })), 'legacy FSRS snapshots survive while mastery waits for recorded production')
   assert.equal(fixture.get<Word>('words', 'ability')?.definition, '本地修订释义')
   assert.deepEqual(fixture.get<Word>('words', 'ability')?.bookUnits, {
     'cet4-full': 4, 'ky-core': 2, 'cet4-core': 1,
@@ -675,7 +729,7 @@ test('backup: real-paper cards, independent submissions and local documents surv
   const study = paperStudy({ files: { paper: ref } })
   const fixture = databaseFixture(t, { cetPapers: [study], media: [{ id: ref.id, blob: paperPdf }] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 8)
+  assert.equal(exported.schemaVersion, 9)
   assert.deepEqual(exported.data.cetPapers, [study])
   assert.equal(exported.data.media[0].type, 'application/pdf')
   fixture.reset({})

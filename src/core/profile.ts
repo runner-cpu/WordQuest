@@ -1,6 +1,7 @@
-import { db, todayKey } from '../db/database'
+import { db, SCHEMA_VERSION, todayKey } from '../db/database'
 import { RANKS, computePower, difficultyWeight } from '../core/game'
 import type { DailyLog, Profile } from '../types/model'
+import { DEFAULT_DAILY_NEW_TARGET, mergeFamiliarWords } from './vocabProgress'
 
 export function uid(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
@@ -21,10 +22,10 @@ export function defaultProfile(): Profile {
     dormancy: false,
     theme: 'night',
     mascot: { name: '阿词', skin: 'default' },
-    dailyNewTarget: 20,
+    dailyNewTarget: DEFAULT_DAILY_NEW_TARGET,
     onboarded: false,
     deviceId: uid(),
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     streakRewardTier: 0,
   }
 }
@@ -42,6 +43,16 @@ export async function patchProfile(patch: Partial<Profile>): Promise<Profile> {
   const next = { ...cur, ...patch }
   await db.profile.put(next)
   return next
+}
+
+/** 熟词标记仅安排队列：保留 FSRS、作答日志和奖励，并串行合并跨标签修改。 */
+export async function setFamiliarWord(wordId: string, excluded: boolean): Promise<Profile> {
+  return db.transaction('rw', db.profile, async () => {
+    const current = await ensureProfile()
+    const familiarWords = mergeFamiliarWords(current.familiarWords, undefined)
+    const updatedAt = Math.max(Date.now(), (familiarWords[wordId]?.updatedAt ?? 0) + 1)
+    return patchProfile({ familiarWords: { ...familiarWords, [wordId]: { excluded, updatedAt } } })
+  })
 }
 
 export function emptyDaily(date = todayKey()): DailyLog {

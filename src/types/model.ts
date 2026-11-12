@@ -49,6 +49,8 @@ export interface UserWordStat {
   state: WordState
   mistakeCount: number
   correctCount: number
+  /** 由日志推导的准确拼写/听音拼写次数；旧快照缺省为无产出证据。 */
+  productionCorrectCount?: number
   firstSeenAt: number
   lastReviewedAt: number
 }
@@ -65,6 +67,8 @@ export interface ReviewLog {
   mode: ReviewMode
   /** 该次作答是否正确（用于正确率统计；Again 即 false） */
   correct: boolean
+  /** 一处笔误仍可按 Hard 练习，但不作为准确产出证据。 */
+  nearMiss?: boolean
 }
 
 export type ReviewMode = 'new-card' | 'choice-word' | 'choice-meaning' | 'spell' | 'listen-meaning' | 'listen-spell'
@@ -106,6 +110,9 @@ export interface CetRewardQuestionProgress {
 
 export type CetRewardProgress = Record<string, CetRewardQuestionProgress>
 
+/** 熟词只是队列偏好；false 记录恢复时刻，避免旧备份重新排除该词。 */
+export type FamiliarWords = Record<string, { excluded: boolean; updatedAt: number }>
+
 export interface Profile {
   id: 'me'
   level: number
@@ -144,6 +151,8 @@ export interface Profile {
   customHue?: number
   /** 站内真题的首次作答状态和一次性领奖凭据，跨学习档案共享。 */
   cetRewardProgress?: CetRewardProgress
+  /** 本机熟词排除及恢复标记，独立于 FSRS 和记忆统计。 */
+  familiarWords?: FamiliarWords
 }
 
 export interface AchievementUnlock {

@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Word } from '../types/model'
+import type { UserWordStat, Word } from '../types/model'
 import type { Question, QuestionKind } from '../core/session'
-import { buildQuestion, overrideRating, primaryMeaning, submitAnswer } from '../core/session'
+import { appendSessionRetry, buildQuestion, buildSessionQueue, overrideRating, primaryMeaning, selectSessionQuestionKind, submitAnswer } from '../core/session'
 import { recordCombo } from '../core/progress'
 import { awardRewards } from '../core/profile'
 import { MODE_LABEL, autoRating } from '../core/fsrs'
 import { levelFromXp, rankFromPower } from '../core/game'
-import { playSfx, speak } from '../core/audio'
+import { playSfx, speak, stopSpeaking } from '../core/audio'
 import { Chest, Mascot, Monster, PixelBar, PixelButton } from '../ui/Pixel'
 import { Icon } from '../ui/icons'
 import { loadRoots, rootsForWord, type RootEntry } from '../core/roots'
 import { useUi } from '../state/ui'
 import { readAppearance, rememberAppearance } from '../ui/theme'
+import { db } from '../db/database'
+import { countProductionCorrect, isFamiliar } from '../core/vocabProgress'
 
 interface BattleProps {
   reviews: Word[]
@@ -78,10 +80,9 @@ const BOSS_BONUS_COIN = 2
 export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps) {
   const profile = useUi((s) => s.profile)
   const initialQueue = useMemo(
-    () => [
-      ...reviews.map((w) => ({ word: w, isReview: true })),
-      ...news.map((w) => ({ word: w, isReview: false })),
-    ],
+    () => buildSessionQueue(reviews.filter((word) => !isFamiliar(profile ?? undefined, word.id)), news.filter((word) => !isFamiliar(profile ?? undefined, word.id))),
+    // The round is fixed at entry; current familiarity is also checked before every question.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [reviews, news],
   )
 
@@ -104,8 +105,10 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
   const [floats, setFloats] = useState<FloatItem[]>([])
   const [levelUp, setLevelUp] = useState<number | null>(null)
   const [chestOpen, setChestOpen] = useState(false)
-  /** 本题提交后的 FSRS stability，用于记忆强度环 */
-  const [statStability, setStatStability] = useState<number | null>(null)
+  /** Feedback uses the persisted business state, including actual production evidence. */
+  const [reviewedStat, setReviewedStat] = useState<UserWordStat | null>(null)
+  const [questionError, setQuestionError] = useState('')
+  const [questionLoadAttempt, setQuestionLoadAttempt] = useState(0)
   /** 本场已答题数（用于退出确认） */
   const answeredCountRef = useRef(0)
   const [learnedWords, setLearnedWords] = useState<LearnedWord[]>([])
@@ -162,39 +165,39 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
       setFinished(true)
       return
     }
-    const isReview = current.isReview
-    // 题型每题独立随机采样：确定性种子会让「再来一轮」重复上一轮的题型序列
-    const rnd = new Uint32Array(1)
-    crypto.getRandomValues(rnd)
-    const r = rnd[0] % 6
-    const kind: QuestionKind = !isReview
-      ? index % 3 === 0
-        ? 'choice-meaning'
-        : 'choice-word'
-      : r <= 1
-        ? 'spell'
-        : r === 2
-          ? 'listen-spell'
-          : r === 3
-            ? 'listen-meaning'
-            : r === 4
-              ? 'choice-meaning'
-              : 'choice-word'
-    setQuestion(buildQuestion(current.word, kind, pool, isReview, undefined, knownWords))
+    let disposed = false
+    let audioTimer: ReturnType<typeof setTimeout> | undefined
+    let focusTimer: ReturnType<typeof setTimeout> | undefined
+    setQuestion(null)
+    setQuestionError('')
     submittingRef.current = false
     setTyped('')
     setAnswered(null)
     setShowRating(false)
     setDying(false)
-    startRef.current = Date.now()
-    if (isBoss) playSfx('boss')
-    if (kind === 'listen-meaning' || kind === 'listen-spell') {
-      setTimeout(() => void speak(current.word.word), 220)
-    }
-    if (kind === 'spell' || kind === 'listen-spell') {
-      setTimeout(() => inputRef.current?.focus(), 60)
-    }
-  }, [current, index, pool])
+    setReviewedStat(null)
+    void Promise.all([
+      db.stats.get(current.word.id),
+      db.reviewLogs.where('wordId').equals(current.word.id).toArray(),
+      db.profile.get('me'),
+    ]).then(([stat, logs, latestProfile]) => {
+      if (disposed) return
+      if (isFamiliar(latestProfile, current.word.id)) {
+        setQueue((items) => items.filter((item, itemIndex) => itemIndex < index || item.word.id !== current.word.id))
+        return
+      }
+      const random = new Uint32Array(1)
+      crypto.getRandomValues(random)
+      const kind = selectSessionQuestionKind(current, countProductionCorrect(logs), random[0])
+      const familiarFiltered = knownWords?.filter((word) => !isFamiliar(latestProfile, word.id))
+      setQuestion(buildQuestion(current.word, kind, pool, current.isReview, stat, familiarFiltered))
+      startRef.current = Date.now()
+      if (isBoss) playSfx('boss')
+      if (kind === 'listen-meaning' || kind === 'listen-spell') audioTimer = setTimeout(() => void speak(current.word.word), 220)
+      if (kind === 'spell' || kind === 'listen-spell') focusTimer = setTimeout(() => inputRef.current?.focus(), 60)
+    }).catch(() => { if (!disposed) setQuestionError('学习记录未能读取，请重试本题。') })
+    return () => { disposed = true; clearTimeout(audioTimer); clearTimeout(focusTimer); stopSpeaking() }
+  }, [current, index, pool, questionLoadAttempt])
 
   /** 结算：宝箱先抖后开，金币飞出 */
   useEffect(() => {
@@ -252,20 +255,13 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
     else setIndex((i) => i + 1)
   }, [index, queue.length, finish])
 
-  /** 答错的词补到队尾重练一次，但不无限循环（同一词最多出现 2 次） */
+  /** The mandatory new-word production turn is separate from optional bounded retries. */
   const requeueIfWrong = useCallback(
     (word: Word, correct: boolean) => {
-      if (correct) return
-      setQueue((q) => {
-        // 单个词最多重练一次
-        if (q.filter((item) => item.word.id === word.id).length >= 2) return q
-        // 整轮重排不超过初始题量的一半：答错多时不把一轮拖成两轮
-        const retryCount = q.length - initialQueue.length
-        if (retryCount >= Math.ceil(initialQueue.length / 2)) return q
-        return [...q, { word, isReview: true }]
-      })
+      if (!current || current.word.id !== word.id) return
+      setQueue((items) => appendSessionRetry(items, current, correct, new Set(initialQueue.map((item) => item.word.id)).size))
     },
-    [initialQueue.length],
+    [current, initialQueue],
   )
 
   const commit = useCallback(
@@ -328,7 +324,7 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
       }
 
       answeredCountRef.current++
-      setStatStability(res.stat.fsrs.stability)
+      setReviewedStat(res.stat)
       setLearnedWords((list) => [
         ...list.filter((x) => x.word !== question.word.word),
         {
@@ -433,7 +429,7 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
         <div className="pixel-frame w-full max-w-sm bg-panel p-3">
           <dl className="space-y-2">
             {[
-              { label: '斩杀单词', value: `${stats.total} 只` },
+              { label: '作答次数', value: `${stats.total} 次` },
               {
                 label: '正确率',
                 value: `${acc}%`,
@@ -475,6 +471,10 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
                 setStats({ correct: 0, total: 0, xp: 0, coins: 0, bonus: 0 })
                 setCombo(0)
                 setMaxCombo(0)
+                setLearnedWords([])
+                answeredCountRef.current = 0
+                xpBaseRef.current = (xpBaseRef.current ?? 0) + totalXp
+                setQuestionLoadAttempt((attempt) => attempt + 1)
                 setQueue(initialQueue)
               }}
             >
@@ -651,6 +651,8 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
         {/* 中段：题干，可滚动。紧随舞台（justify-start），避免大屏上题目被推到下半屏 */}
         <div className="flex min-h-0 flex-1 flex-col justify-start overflow-y-auto px-3 pt-3 pb-3">
         <div className={`w-full ${answered ? 'hidden' : ''}`}>
+        {!question && <p className="readable text-dim" role="status">{questionError || '正在准备本题…'}</p>}
+        {questionError && <PixelButton onClick={() => setQuestionLoadAttempt((attempt) => attempt + 1)}>重试本题</PixelButton>}
         <div className="mb-2 text-center text-px12 text-dim">{KIND_HINT[question?.kind ?? 'choice-word']}</div>
 
         {/* 题面 */}
@@ -796,14 +798,14 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
                 </div>
               )}
               <div className="mt-3 flex items-center gap-3 border-t-2 border-edge pt-2">
-                {/* 记忆强度环：stability 越大越牢固，22 天以上视为掌握 */}
+                {/* FSRS estimates the interval; mastery also requires actual production evidence. */}
                 {(() => {
-                  const stab = statStability ?? 0
+                  const stab = reviewedStat?.fsrs.stability ?? 0
                   const pct = Math.min(1, stab / 45)
                   const C = 2 * Math.PI * 15
-                  const color = stab >= 21 ? 'var(--wq-pass)' : stab >= 7 ? 'var(--wq-gold)' : 'var(--wq-fail)'
+                  const color = reviewedStat?.state === 'mastered' ? 'var(--wq-pass)' : reviewedStat?.state === 'review' ? 'var(--wq-gold)' : 'var(--wq-fail)'
                   return (
-                    <div className="relative h-10 w-10 shrink-0" role="img" aria-label={`记忆强度约 ${Math.round(stab)} 天`}>
+                    <div className="relative h-10 w-10 shrink-0" role="img" aria-label={`FSRS 估算记忆强度约 ${Math.round(stab)} 天`}>
                       <svg width="40" height="40" viewBox="0 0 40 40">
                         <circle cx="20" cy="20" r="15" fill="none" stroke="var(--wq-panel-2)" strokeWidth="5" />
                         <circle
@@ -827,11 +829,12 @@ export function Battle({ reviews, news, pool, knownWords, onExit }: BattleProps)
                   )
                 })()}
                 <div className="min-w-0 flex-1">
-                  <div className="text-px12 text-dim">记忆强度</div>
+                  <div className="text-px12 text-dim">记忆强度（FSRS 估算）</div>
                   <div className="text-px12 text-bright">
-                    约 {Math.round(statStability ?? 0)} 天 ·{' '}
-                    {(statStability ?? 0) >= 21 ? '已掌握' : (statStability ?? 0) >= 7 ? '巩固中' : '还比较脆'}
+                    约 {Math.round(reviewedStat?.fsrs.stability ?? 0)} 天 ·{' '}
+                    {reviewedStat?.state === 'mastered' ? '已掌握' : reviewedStat?.state === 'review' ? '复习中' : '学习中'}
                   </div>
+                  <div className="mt-0.5 text-px12 text-dim">{(reviewedStat?.productionCorrectCount ?? 0) > 0 ? `已记录 ${reviewedStat?.productionCorrectCount} 次主动拼写` : '待完成一次准确拼写或听写'}</div>
                   <div className="mt-0.5 text-px12 text-dim">
                     下次复习：{answered.nextDue ? formatDue(answered.nextDue) : '已加入队列'}
                   </div>

@@ -4,6 +4,8 @@ import { EmptyState, Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pix
 import { levelProgress, rankFromPower } from '../core/game'
 import { useUi } from '../state/ui'
 import { reviewForecast } from '../core/learningReport'
+import { deriveState, MASTERED_MIN_INTERVAL_DAYS } from '../core/fsrs'
+import { countProductionCorrect, isFamiliar } from '../core/vocabProgress'
 import { useStudyClock } from '../state/useStudyClock'
 import { CetProgressReport } from './CetProgressReport'
 
@@ -32,16 +34,23 @@ export function StatsPage() {
       db.reviewLogs.toArray(),
     ])
     const now = clock
-    const learned = stats.filter((s) => s.fsrs.reps > 0)
-    const mastered = stats.filter((s) => s.state === 'mastered')
-    const due = learned.filter((s) => s.fsrs.due <= now)
+    const productionByWord = new Map<string, number>()
+    for (const log of rlogs) if (countProductionCorrect([log]) > 0) productionByWord.set(log.wordId, (productionByWord.get(log.wordId) ?? 0) + 1)
+    const classified = stats.map((stat) => {
+      const production = stat.productionCorrectCount ?? productionByWord.get(stat.wordId) ?? 0
+      return { ...stat, productionCorrectCount: production, state: deriveState(stat.fsrs, production) }
+    })
+    const learned = classified.filter((s) => s.fsrs.reps > 0)
+    const mastered = classified.filter((s) => s.state === 'mastered')
+    const scheduled = learned.filter((s) => !isFamiliar(profile ?? undefined, s.wordId))
+    const due = scheduled.filter((s) => s.fsrs.due <= now)
 
-    const forecast = reviewForecast(learned.map(s => s.fsrs.due), now)
+    const forecast = reviewForecast(scheduled.map(s => s.fsrs.due), now)
 
     const dist = {
-      new: stats.filter((s) => s.state === 'new').length,
-      learning: stats.filter((s) => s.state === 'learning').length,
-      review: stats.filter((s) => s.state === 'review').length,
+      new: classified.filter((s) => s.state === 'new').length,
+      learning: classified.filter((s) => s.state === 'learning').length,
+      review: classified.filter((s) => s.state === 'review').length,
       mastered: mastered.length,
     }
 
@@ -103,6 +112,8 @@ export function StatsPage() {
     return {
       mastered: mastered.length,
       learned: learned.length,
+      productionCovered: learned.filter((stat) => stat.productionCorrectCount > 0).length,
+      familiar: Object.values(profile?.familiarWords ?? {}).filter((entry) => entry.excluded).length,
       due: due.length,
       forecast,
       dist,
@@ -116,7 +127,7 @@ export function StatsPage() {
       streakDays,
       hourly,
     }
-  }, [clock])
+  }, [clock, profile?.familiarWords])
 
   const lp = levelProgress(profile?.xp ?? 0)
   const rank = rankFromPower(profile?.powerPeak ?? 0)
@@ -217,6 +228,7 @@ export function StatsPage() {
           {totals.listeningMinutes > 0 && <p className="readable text-dim">原创听力累计练习 {totals.listeningMinutes} 分钟。</p>}
           <PixelButton onClick={() => setTab('today')}>回到今日开始学习</PixelButton>
         </Panel>
+        <ProductionCoverage covered={totals.productionCovered} total={totals.learned} familiar={totals.familiar} />
       </div>
     )
   }
@@ -240,6 +252,7 @@ export function StatsPage() {
           <Metric label="连续有效天数" value={totals?.streakDays ?? 0} tone="bright" />
         </div>
       </Panel>
+      <ProductionCoverage covered={totals.productionCovered} total={totals.learned} familiar={totals.familiar} />
 
       <Panel>
         <SectionHead right={`共 ${totals?.learned ?? 0} 词`}>近半年词卡积累</SectionHead>
@@ -489,6 +502,16 @@ export function StatsPage() {
       </PixelButton>
     </div>
   )
+}
+
+function ProductionCoverage({ covered, total, familiar }: { covered: number; total: number; familiar: number }) {
+  return <Panel>
+    <SectionHead right={`${covered}/${total} 词`}>产出练习覆盖</SectionHead>
+    <p className="readable mb-3 text-[16px] leading-relaxed text-dim">已学词中，{covered} 词至少准确完成过 1 次拼写或听写。选择题答对与接受的笔误不计入准确产出。</p>
+    <PixelBar value={covered} max={Math.max(1, total)} label="准确产出覆盖" />
+    <p className="readable mt-3 text-[16px] leading-relaxed text-dim">累计掌握需要同时满足：进入 FSRS 复习状态、计划间隔达到 {MASTERED_MIN_INTERVAL_DAYS} 天，并且至少准确完成过 1 次拼写或听写。仅有选择题记录不会计为掌握。</p>
+    {familiar > 0 && <p className="readable mt-2 text-[16px] leading-relaxed text-dim">已标记 {familiar} 个熟词并暂停安排。熟词自查不增加掌握数，原有练习记录保留。</p>}
+  </Panel>
 }
 
 function Metric({

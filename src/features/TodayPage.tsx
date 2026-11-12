@@ -13,6 +13,7 @@ import { useUi } from '../state/ui'
 import { useBattle } from '../state/battle'
 import { useStudyClock } from '../state/useStudyClock'
 import { buildWeeklyReport, markWeeklySeen, weeklySeen, type WeeklyReport } from '../core/weekly'
+import { DEFAULT_DAILY_NEW_TARGET, isFamiliar } from '../core/vocabProgress'
 import type { BookId } from '../types/model'
 
 const MASCOT_LINES = ['每天认几个词，慢慢就有了积累。', '今天也要加油哦。', '我闻到新单词的味道了。', '复习比新词更重要呢。', '准备好了就一起出发吧。']
@@ -45,8 +46,8 @@ export function TodayPage() {
   const prog = useLiveQuery(() => todayProgress(), [now])
   const bookDue = useLiveQuery(async () => {
     const ids = new Set((await wordsForBook(effectiveBook)).map((w) => w.id))
-    return db.stats.where('fsrs.due').belowOrEqual(now).filter((s) => s.fsrs.reps > 0 && ids.has(s.wordId)).count()
-  }, [effectiveBook, now])
+    return db.stats.where('fsrs.due').belowOrEqual(now).filter((s) => s.fsrs.reps > 0 && ids.has(s.wordId) && !isFamiliar(profile ?? undefined, s.wordId)).count()
+  }, [effectiveBook, now, profile?.familiarWords])
   const quests = useLiveQuery(() => getTodayQuests(), [day, now])
   const recentDays = useLiveQuery(async () => {
     const keys = Array.from({ length: 7 }, (_, i) => dateKeyOffset(i - 6, new Date(now)))
@@ -65,7 +66,7 @@ export function TodayPage() {
   const dateInfo = examDateInfo(profile?.examDate)
   const questsDone = quests?.progress.filter((p, i) => p >= quests.defs[i].target).length ?? 0
   const due = bookDue ?? 0
-  const target = profile?.dailyNewTarget ?? 20
+  const target = profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET
   const learned = daily?.newLearned ?? 0
   const loading = bookCounts === undefined || daily === undefined || prog === undefined || bookDue === undefined
   const complete = !loading && learned >= target && due === 0
@@ -88,7 +89,7 @@ export function TodayPage() {
       const reviews = plan.reviews.slice(0, 24)
       const news = plan.news.slice(0, Math.max(0, 24 - reviews.length))
       const remaining = plan.reviews.length + plan.news.length - reviews.length - news.length
-      if (remaining > 0) pushToast(`本轮 ${reviews.length + news.length} 题，还有 ${remaining} 题可再来一轮`)
+      if (remaining > 0) pushToast(`本轮 ${reviews.length + news.length} 词，还有 ${remaining} 词可再来一轮`)
       const pool = await wordsForBook(effectiveBook, 400)
       const reviewIds = new Set(reviews.map((w) => w.id))
       const knownIds = new Set((await db.stats.filter((s) => s.fsrs.reps > 0).toArray()).map((s) => s.wordId))
@@ -151,7 +152,8 @@ export function TodayPage() {
           <PixelButton variant="primary" className="mt-auto w-full !py-3" icon={complete ? 'target' : 'sword'} onClick={() => { if (complete) openCetPrep(); else void start() }} disabled={starting || loading} aria-busy={starting}>
             {starting ? '正在准备学习…' : loading ? '正在读取进度…' : complete ? '选择一项备考训练' : due > 0 ? '继续学习' : '开始今日学习'}
           </PixelButton>
-          <p className="mt-2 text-center text-px12 text-dim">{complete ? '新词与到期复习均已完成' : '复习优先，每轮最多 24 题'}</p>
+          <p className="mt-2 text-center text-px12 text-dim">{complete ? '新词与到期复习均已完成' : '复习优先，每轮最多 24 词'}</p>
+          {!complete && <p className="readable mt-2 text-[16px] leading-relaxed text-dim">{due > 24 ? '到期复习较多，可以先分轮复习，再学新词。' : ''}每个新词还会加一道拼写或听写，用来检查能否独立写出。</p>}
           {startError && <p className="readable mt-3 text-px12 text-fail" role="alert">{startError}</p>}
         </Panel>
 

@@ -12,6 +12,7 @@ import { applyTheme } from '../ui/theme'
 import { useUi } from '../state/ui'
 import { ensureSeedBook } from '../core/wordbook'
 import { SHOP_ITEMS, applyPurchase, canBuy } from '../core/shop'
+import { DEFAULT_DAILY_NEW_TARGET } from '../core/vocabProgress'
 
 export function MePage({
   onOpenSettings,
@@ -227,7 +228,7 @@ function Onboarding({ onDone }: { onDone: (patch: Record<string, unknown>) => Pr
   const [examType, setExamType] = useState<'cet4' | 'cet6'>('cet4')
   const [examDate, setExamDate] = useState('')
   const [customDate, setCustomDate] = useState(false)
-  const [dailyNew, setDailyNew] = useState(20)
+  const [dailyNew, setDailyNew] = useState(DEFAULT_DAILY_NEW_TARGET)
   const [name, setName] = useState('阿词')
   /** 提交中禁用「开始冒险」，防止双击重复写词书下载 */
   const [submitting, setSubmitting] = useState(false)
@@ -319,11 +320,11 @@ function Onboarding({ onDone }: { onDone: (patch: Record<string, unknown>) => Pr
             aria-pressed={dailyNew === n}
             className={`pixel-btn py-3 ${dailyNew === n ? 'pixel-btn-primary' : ''}`}
           >
-            {n} 个
+            {n} 个{n === DEFAULT_DAILY_NEW_TARGET ? ' · 推荐' : ''}
           </button>
         ))}
       </div>
-      <p className="readable text-px12 text-dim">随时可改。到期复习永远优先于新词。</p>
+      <p className="readable text-[16px] leading-relaxed text-dim">10 个是低新词、高复习的推荐起点，随时可改。到期复习优先于新词，每个新词会加一道拼写或听写。</p>
     </div>,
     <div key="3" className="space-y-2">
       <div className="text-px12 text-bright">给你的吉祥物起个名</div>

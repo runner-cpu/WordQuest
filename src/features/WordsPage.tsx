@@ -7,9 +7,12 @@ import { Icon } from '../ui/icons'
 import { useUi } from '../state/ui'
 import { useBattle } from '../state/battle'
 import { speak } from '../core/audio'
+import { ensureProfile, getDaily } from '../core/profile'
+import { DEFAULT_DAILY_NEW_TARGET, isFamiliar } from '../core/vocabProgress'
 import { rankFromPower } from '../core/game'
 import { allRoots, groupByClass, loadRoots } from '../core/roots'
 import { RootQuizPanel } from './RootQuizPanel'
+import { FamiliarWords } from './FamiliarWords'
 import type { BookId, Word } from '../types/model'
 
 type Tab = 'map' | 'books' | 'roots' | 'search' | 'hard'
@@ -34,6 +37,7 @@ export function WordsPage() {
   const [rootsLoaded, setRootsLoaded] = useState(false)
   const [openRoot, setOpenRoot] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('books')
+  const [familiarBook, setFamiliarBook] = useState<BookId | null>(null)
 
   /** 地图展示的词书：优先主学词书 */
   const mapBook: BookId = useMemo(() => {
@@ -94,14 +98,14 @@ export function WordsPage() {
   }, [searchQ])
 
   const hardWords = useLiveQuery(async () => {
-    const stats = await db.stats.filter((s) => s.mistakeCount >= 2).toArray()
+    const stats = await db.stats.filter((s) => s.mistakeCount >= 2 && !isFamiliar(profile ?? undefined, s.wordId)).toArray()
     stats.sort((a, b) => b.mistakeCount - a.mistakeCount)
     const words = await db.words.bulkGet(stats.map((s) => s.wordId))
     return words
       .map((w, i) => (w ? { word: w, mistakes: stats[i].mistakeCount } : null))
       .filter((x): x is { word: NonNullable<typeof x>['word']; mistakes: number } => Boolean(x))
       .slice(0, 60)
-  }, [])
+  }, [profile?.familiarWords])
 
   async function download(bookId: BookId) {
     if (busy) return
@@ -119,7 +123,8 @@ export function WordsPage() {
   }
 
   async function practiceHard() {
-    const stats = await db.stats.filter((s) => s.mistakeCount >= 2).toArray()
+    const currentProfile = await ensureProfile()
+    const stats = await db.stats.filter((s) => s.mistakeCount >= 2 && !isFamiliar(currentProfile, s.wordId)).toArray()
     const words = (await db.words.bulkGet(stats.map((s) => s.wordId))).filter(
       (w): w is NonNullable<typeof w> => Boolean(w),
     )
@@ -130,16 +135,17 @@ export function WordsPage() {
     const pool = await db.words.limit(400).toArray()
     const knownIds = new Set(stats.map((x) => x.wordId))
     const knownWords = pool.filter((w) => knownIds.has(w.id))
-    openBattle({ reviews: words.slice(0, 30), news: [], pool, knownWords })
+    openBattle({ reviews: words.slice(0, 24), news: [], pool, knownWords })
   }
 
   /** 点击地图上的已下载单元 → 直接开打（该单元的到期复习 + 新词） */
   async function startUnit(unitId: number) {
+    const currentProfile = await ensureProfile()
     const words = (await wordsForBook(mapBook)).filter(
-      (w) => w.unitId === unitId,
+      (w) => w.unitId === unitId && !isFamiliar(currentProfile, w.id),
     )
     if (words.length === 0) {
-      pushToast('这个单元还没下载')
+      pushToast('本单元没有可练词，可先下载或在熟词标记中恢复练习')
       return
     }
     const stats = await db.stats.bulkGet(words.map((w) => w.id))
@@ -153,10 +159,12 @@ export function WordsPage() {
         if (s.fsrs.due <= now) due.push(w)
       }
     })
-    const news = words.filter((w) => !learned.has(w.id)).slice(0, 12)
     const reviews = due.slice(0, 24)
+    const daily = await getDaily()
+    const remainingNew = Math.max(0, (currentProfile.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET) - daily.newLearned)
+    const news = words.filter((w) => !learned.has(w.id)).slice(0, Math.min(remainingNew, Math.max(0, 24 - reviews.length)))
     if (reviews.length + news.length === 0) {
-      pushToast('这一关已经全部学完，去「今日」复习吧')
+      pushToast(remainingNew === 0 ? '今日新词目标已完成，本单元暂无到期复习' : '本单元暂无待练词，可到「今日」复习或恢复熟词')
       return
     }
     const pool = await wordsForBook(mapBook, 600)
@@ -212,8 +220,9 @@ export function WordsPage() {
           </div>
         </div>
         {isImported && (
-          <div className="mt-2 text-px12 text-dim tnum">
-            已缓存 {count} 词 · 可离线学习
+          <div className="mt-2 space-y-2">
+            <p className="text-px12 text-dim tnum">已缓存 {count} 词 · 可离线学习</p>
+            <PixelButton size="sm" aria-label={`${b.name}快速标记熟词`} aria-expanded={familiarBook === b.id} onClick={() => setFamiliarBook((current) => current === b.id ? null : b.id)}>快速标记熟词</PixelButton>
           </div>
         )}
       </Panel>
@@ -257,6 +266,8 @@ export function WordsPage() {
           </button>
         ))}
       </div>
+
+      {familiarBook && <FamiliarWords key={familiarBook} bookId={familiarBook} onClose={() => setFamiliarBook(null)} />}
 
       {tab === 'map' && (
         <Panel>
@@ -302,7 +313,7 @@ export function WordsPage() {
                                       }
                                     })()
                                   } else {
-                                    void startUnit(n.unitId)
+                                    void startUnit(n.unitId).catch(() => pushToast('学习队列未能读取，请检查本机存储后重试'))
                                   }
                                 }}
                                 aria-label={`第 ${n.unitId} 关：已学 ${n.learned}/${n.total}，${
@@ -545,10 +556,10 @@ export function WordsPage() {
             <PixelButton
               className="w-full"
               variant="primary"
-              onClick={() => void practiceHard()}
+              onClick={() => void practiceHard().catch(() => pushToast('攻坚队列未能读取，请检查本机存储后重试'))}
               disabled={(hardWords?.length ?? 0) === 0}
             >
-              开始攻坚（{Math.min(30, hardWords?.length ?? 0)} 词）
+              开始攻坚（{Math.min(24, hardWords?.length ?? 0)} 词）
             </PixelButton>
           </Panel>
           {hardWords?.length === 0 && (

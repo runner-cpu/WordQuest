@@ -9,7 +9,7 @@ const word = (id: string, rank: number, bookUnits: Word['bookUnits']): Word => (
   bookId: 'cet4-full', unitId: 9, bookUnits,
 })
 
-test('今日队列按所有归属取到期词，新词跨词书去重并扣除当天已学额度', async () => {
+test('今日队列按所有归属取到期词，新词跨词书去重并扣除当天已学额度', async (t) => {
   const shared = word('shared', 1, { 'cet4-core': 1, 'cet4-full': 9 })
   const due = word('due', 2, { 'cet4-core': 1, 'cet4-full': 9 })
   const extra = word('extra', 3, { 'cet4-full': 10 })
@@ -21,6 +21,7 @@ test('今日队列按所有归属取到期词，新词跨词书去重并扣除�
     filter: db.words.filter,
   }
   let alreadyLearned = 1
+  t.mock.method(db.profile, 'get', async () => undefined)
   db.stats.toArray = async () => [{ wordId: 'due', fsrs: { reps: 1, due: 0 } }] as never
   db.dailyLogs.get = (async () => ({ newLearned: alreadyLearned })) as never
   db.words.bulkGet = (async (ids: string[]) => ids.map((id) => rows.find((row) => row.id === id))) as never

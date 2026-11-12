@@ -13,6 +13,7 @@ import { isMuted, setMuted } from '../core/audio'
 import { ownedThemeList, ownsTheme } from '../core/shop'
 import { formatBytes, storageInfo, type StorageInfo } from '../core/storage'
 import { HUE_PRESETS, applyCustomHue, clearCustomHue, customTokens } from '../core/customTheme'
+import { DEFAULT_DAILY_NEW_TARGET } from '../core/vocabProgress'
 import type { BookId } from '../types/model'
 
 import { THEMES, STYLES, applyTheme, applyStyle, readAppearance, rememberAppearance } from '../ui/theme'
@@ -190,38 +191,39 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             </div>
           </Field>
 
-          <Field label={`每日新词量（当前 ${profile?.dailyNewTarget ?? 20}，可自定义 5-300）`}>
+          <Field label={`每日新词量（当前 ${profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET}，可自定义 5-300）`}>
             <div className="grid grid-cols-4 gap-1">
               {[10, 20, 40, 60].map((n) => (
                 <button
                   key={n}
                   onClick={() => void save({ dailyNewTarget: n })}
-                  aria-pressed={(profile?.dailyNewTarget ?? 20) === n}
+                  aria-pressed={(profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET) === n}
                   className={`pixel-btn pixel-btn-sm ${
-                    (profile?.dailyNewTarget ?? 20) === n ? 'pixel-btn-primary' : ''
+                    (profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET) === n ? 'pixel-btn-primary' : ''
                   }`}
                 >
-                  {n}
+                  {n}{n === DEFAULT_DAILY_NEW_TARGET ? ' 推荐' : ''}
                 </button>
               ))}
             </div>
+            <p className="readable mt-2 text-[16px] leading-relaxed text-dim">10 个是低新词、高复习的推荐起点。每日目标只限制新词，到期复习优先；每个新词会加一道拼写或听写。</p>
             <div className="mt-1 flex items-center gap-2">
               <input
                 type="number"
                 min={5}
                 max={300}
-                defaultValue={profile?.dailyNewTarget ?? 20}
-                key={profile?.dailyNewTarget ?? 20}
+                defaultValue={profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET}
+                key={profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET}
                 onBlur={(e) => {
                   if (e.target.value.trim() === '') {
-                    e.target.value = String(profile?.dailyNewTarget ?? 20)
+                    e.target.value = String(profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET)
                     return
                   }
                   const v = Number(e.target.value)
                   if (!Number.isFinite(v)) return
                   const clamped = Math.min(300, Math.max(5, Math.round(v)))
                   e.target.value = String(clamped)
-                  if (clamped !== (profile?.dailyNewTarget ?? 20)) void save({ dailyNewTarget: clamped })
+                  if (clamped !== (profile?.dailyNewTarget ?? DEFAULT_DAILY_NEW_TARGET)) void save({ dailyNewTarget: clamped })
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
                 className="pixel-input w-24 px-2 py-1 text-px12"

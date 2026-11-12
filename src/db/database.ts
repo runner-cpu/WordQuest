@@ -1,4 +1,7 @@
-import Dexie, { type Table } from 'dexie'
+import Dexie, { type Table, type Transaction } from 'dexie'
+import { deriveState } from '../core/fsrs'
+import { computePower, difficultyWeight } from '../core/game'
+import { countProductionCorrect } from '../core/vocabProgress'
 import type { ExamPaperRow } from '../core/examImport'
 import type { CetPaperStudy } from '../types/cetPaper'
 import type {
@@ -13,6 +16,34 @@ import type {
   UserWordStat,
   Word,
 } from '../types/model'
+
+/** 只更新业务掌握口径；升级不会再次调度、改写 FSRS 快照或发放学习奖励。 */
+export async function migrateVocabularyProgress(transaction: Transaction): Promise<void> {
+  const [stats, logs] = await Promise.all([
+    transaction.table<UserWordStat>('stats').toArray(),
+    transaction.table<ReviewLog>('reviewLogs').toArray(),
+  ])
+  const byWord = new Map<string, ReviewLog[]>()
+  for (const log of logs) {
+    const list = byWord.get(log.wordId) ?? []
+    list.push(log)
+    byWord.set(log.wordId, list)
+  }
+  const nextStats = stats.map((stat) => {
+    const productionCorrectCount = countProductionCorrect(byWord.get(stat.wordId) ?? [])
+    return { ...stat, productionCorrectCount, state: deriveState(stat.fsrs, productionCorrectCount) }
+  })
+  if (nextStats.length > 0) await transaction.table<UserWordStat>('stats').bulkPut(nextStats)
+  const mastered = nextStats.filter((stat) => stat.state === 'mastered')
+  const words = await transaction.table<Word>('words').bulkGet(mastered.map((stat) => stat.wordId))
+  const power = computePower({ masteredWeights: words.map((word) => word?.difficultyWeight ?? difficultyWeight(word?.freqRank)) })
+  await transaction.table<Profile>('profile').toCollection().modify((profile) => {
+    profile.power = power
+    profile.powerPeak = Math.max(profile.powerPeak, power)
+    profile.familiarWords ??= {}
+    profile.schemaVersion = 9
+  })
+}
 
 /**
  * 本地优先数据库。数据即真相：IndexedDB 是主存储，云同步只做并集合并。
@@ -75,12 +106,13 @@ export class WordQuestDB extends Dexie {
         profile.schemaVersion = 8
       })
     })
+    this.version(9).stores({}).upgrade(migrateVocabularyProgress)
   }
 }
 
 export const db = new WordQuestDB()
 
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 export function todayKey(d = new Date()): string {
   const y = d.getFullYear()
