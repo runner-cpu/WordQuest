@@ -68,7 +68,13 @@ test('familiar word exclusion is reversible and retains its practice history', a
 })
 
 
+test.describe('new word production with a controlled local wordbook', () => {
+test.use({ serviceWorkers: 'block' })
+
 test('new word includes a separate production turn and completes a round with one unique word', async ({ page }) => {
+  // Background book repair may replace a seeded word between reading it and starting the session.
+  // This flow tests production scheduling; book downloads and offline caching have separate coverage.
+  await page.route('**/data/books/**', route => route.abort())
   await enterApp(page)
   await seedRecognitionOnlyDue(page, true)
   const target = await page.evaluate(async () => {
@@ -89,4 +95,5 @@ test('new word includes a separate production turn and completes a round with on
   await page.getByRole('button', { name: '继续', exact: true }).click()
   await expect(page.getByText('战斗结算', { exact: true })).toBeVisible()
   await expect(page.getByText('本场词单（1）', { exact: true })).toBeVisible()
+})
 })
