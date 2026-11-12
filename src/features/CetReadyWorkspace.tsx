@@ -143,7 +143,7 @@ export function CetReadyWorkspace({ paper, initial, onClose, scope = 'all' }: { 
         <PixelButton size="sm" variant="ghost" disabled={busy} aria-label="保存并退出真题练习" onClick={() => close.current()}><Icon name="cross" size={16} /></PixelButton>
       </header>
       {sections.length > 1 && <nav className="cet-ready-sections" aria-label="真题题型">
-        {sections.map((item) => <button type="button" key={item.id} aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><span>{item.name}</span><span className="readable">{item.range}</span></button>)}
+        {sections.map((item) => <button type="button" key={item.id} disabled={busy} aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><span>{item.name}</span><span className="readable">{item.range}</span></button>)}
       </nav>}
       {scope !== 'reading' && <CetListeningPlayer src={audioUrl} group={activeListening} active={section === 'listening'} />}
       <div ref={body} className="cet-ready-body readable" aria-label="真题材料与作答">

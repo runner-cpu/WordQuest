@@ -157,6 +157,8 @@ export interface Profile {
   cetRewardProgress?: CetRewardProgress
   /** 本机熟词排除及恢复标记，独立于 FSRS 和记忆统计。 */
   familiarWords?: FamiliarWords
+  /** 轻量迁移保留的逐词难度；只在尚未下载词条时用于计算战力。 */
+  wordDifficultyWeights?: Record<string, number>
 }
 
 export interface AchievementUnlock {

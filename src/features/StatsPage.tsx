@@ -8,6 +8,7 @@ import { deriveState, MASTERED_MIN_INTERVAL_DAYS } from '../core/fsrs'
 import { countProductionCorrect, isFamiliar } from '../core/vocabProgress'
 import { useStudyClock } from '../state/useStudyClock'
 import { CetProgressReport } from './CetProgressReport'
+import { LocalDataLabel, LocalDataNotice } from './LocalDataNotice'
 
 /**
  * 统计页。
@@ -166,6 +167,9 @@ export function StatsPage() {
     ctx.font = '20px monospace'
     ctx.fillStyle = '#9494bf'
     ctx.fillText('LEARNING REPORT', W / 2, 136)
+    ctx.font = '18px "Microsoft YaHei", sans-serif'
+    ctx.fillStyle = '#ffe845'
+    ctx.fillText('本机数据 · 仅汇总当前浏览器保存的记录', W / 2, 170)
 
     const rows: [string, string][] = [
       ['词汇积累阶段', `${rank.rank.code} ${rank.rank.name}`],
@@ -213,13 +217,15 @@ export function StatsPage() {
     URL.revokeObjectURL(url)
   }
 
-  if (!totals || !daily) return <div className="p-4 readable text-dim" role="status">正在读取学习报告…</div>
+  if (!totals || !daily) return <div className="space-y-3 p-3 md:p-5"><LocalDataNotice /><p className="readable text-dim" role="status">正在读取本机学习报告…</p></div>
 
   if (!hasData) {
     return (
       <div className="space-y-3 p-3 pb-24 md:p-5 md:pb-8">
+        <LocalDataNotice />
         <CetProgressReport />
         <Panel>
+          <SectionHead right={<LocalDataLabel />}>词卡学习报告</SectionHead>
           <EmptyState
             icon="chart"
             title="词卡报告等待第一次练习"
@@ -239,12 +245,14 @@ export function StatsPage() {
 
   return (
     <div className="space-y-3 p-3 pb-24 md:p-5 md:pb-8">
+      <LocalDataNotice />
       <CetProgressReport />
       <Panel>
-        <SectionHead>词卡学习报告</SectionHead>
+        <SectionHead right={<LocalDataLabel />}>词卡学习报告</SectionHead>
         <p className="readable text-px12 text-dim">这里汇总所有词书的词卡练习与学习时长。词卡积累阶段、练习正确率和记忆估算用于安排复习；四六级听力、阅读、写作与翻译需分别训练和评估。</p>
       </Panel>
       <Panel className="!p-0">
+        <div className="flex items-center justify-between gap-3 border-b-2 border-edge p-3"><h3 className="readable text-[16px] font-semibold text-bright">词卡累计</h3><LocalDataLabel /></div>
         <div className="grid grid-cols-2 divide-x-2 divide-y-2 divide-edge md:grid-cols-4">
           <Metric label="累计掌握" value={totals?.mastered ?? 0} tone="gold" />
           <Metric label="待复习" value={totals?.due ?? 0} tone={(totals?.due ?? 0) > 0 ? 'fail' : 'bright'} />
@@ -498,7 +506,7 @@ export function StatsPage() {
       </Panel>
 
       <PixelButton variant="primary" className="w-full !py-3" icon="chart" onClick={() => void exportPoster()}>
-        导出学习报告
+        导出本机学习报告
       </PixelButton>
     </div>
   )

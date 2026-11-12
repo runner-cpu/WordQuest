@@ -103,8 +103,8 @@ function cetFixture(t: TestContext) {
   }
 }
 
-test('CET: lightweight registry matches all twelve content tasks and additive schema eleven', () => {
-  assert.equal(SCHEMA_VERSION, 11)
+test('CET: lightweight registry matches all twelve content tasks and additive schema twelve', () => {
+  assert.equal(SCHEMA_VERSION, 12)
   assert.equal(CET_PRACTICE_META.length, 12)
   assert.equal(new Set(CET_PRACTICE_META.map((task) => task.id)).size, 12)
   assert.deepEqual(CET_PRACTICE_META.map((task) => task.id).sort(), CET_PRACTICES.map((task) => task.id).sort())

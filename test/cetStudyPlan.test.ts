@@ -24,7 +24,7 @@ test('study plan foundations remain an optional self report and new profiles do 
   assert.deepEqual(CET_FOUNDATIONS.map(option => option.id), ['building', 'steady', 'ready'])
   assert.equal(CET_FOUNDATIONS.every(option => Boolean(option.label.trim() && option.description.trim())), true)
   assert.equal(defaultProfile().cetFoundation, undefined)
-  assert.equal(SCHEMA_VERSION, 11)
+  assert.equal(SCHEMA_VERSION, 12)
   let saved = { ...defaultProfile(), theme: 'paper' }
   t.mock.method(db.profile, 'get', async () => saved)
   t.mock.method(db.profile, 'put', async value => { saved = structuredClone(value); return 'me' })

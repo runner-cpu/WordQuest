@@ -207,7 +207,7 @@ function paperFixture(t: TestContext) {
 test('CET papers: create an independent local answer card with 55 empty answers', async (t) => {
   t.mock.method(Date, 'now', () => 100)
   const fixture = paperFixture(t)
-  assert.equal(SCHEMA_VERSION, 11)
+  assert.equal(SCHEMA_VERSION, 12)
   const first = await createCetPaperStudy(sourceId, '第一套')
   const second = await createCetPaperStudy(sourceId, '第二套')
   assert.notEqual(first.id, second.id)

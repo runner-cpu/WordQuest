@@ -7,6 +7,7 @@ import { buildCetStudyPlan } from '../core/cetStudyPlan'
 import { useUi } from '../state/ui'
 import { useStudyClock } from '../state/useStudyClock'
 import { Panel, PixelButton, SectionHead } from '../ui/Pixel'
+import { LocalDataLabel } from './LocalDataNotice'
 
 export function CetProgressReport() {
   const profile = useUi(state => state.profile)
@@ -26,7 +27,7 @@ export function CetProgressReport() {
   const plan = buildCetStudyPlan(profile ?? {}, studies, new Date(now))
   const hasActivity = report.papers > 0 || practices.some(row => row.draft.trim() || row.revision?.text.trim() || row.completedAt)
   return <Panel as="section" className="cet-progress-report">
-    <SectionHead>{level === 'cet4' ? '四级' : '六级'}练习报告</SectionHead>
+    <SectionHead right={<LocalDataLabel />}>{level === 'cet4' ? '四级' : '六级'}练习报告</SectionHead>
     <p className="readable text-dim">{hasActivity ? `已练 ${report.papers} 套真题 · 待订正 ${pending} 题` : '从一段听力或一篇阅读开始，作答和核对后就能看到各题型记录。'}</p>
     <p className="readable mt-3 text-dim">已有解析的已做题 {coverage.covered}/{coverage.answered} · 人工已核验 {coverage.verified} 题{coverage.pendingReview > 0 ? ` · 待人工核验 ${coverage.pendingReview} 题` : ''}。解析覆盖为部分卷别；草稿解析仅供复盘参考。</p>
     {report.papers > 0 && <>

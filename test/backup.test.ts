@@ -4,13 +4,14 @@ import { blobToBase64, db, exportBackup, MEDIA_BACKUP_LIMIT, todayKey } from '..
 import { CET_PAPER_SOURCES } from '../src/data/cetPaperSources.ts'
 import { CET_READY_PAPERS } from '../src/core/cetReadyPapers.ts'
 import { importBackup, type BackupPayload } from '../src/core/backup.ts'
-import { defaultProfile, emptyDaily } from '../src/core/profile.ts'
+import { defaultProfile, emptyDaily, recomputePower } from '../src/core/profile.ts'
 import { deriveState, emptySnapshot } from '../src/core/fsrs.ts'
 import { claimChest } from '../src/core/progress.ts'
 import type { AdventureProgress, CetPracticeRecord, CetRewardQuestionProgress, DailyQuest, ExpressionProgress, Profile, ReviewLog, UserWordStat, Word } from '../src/types/model.ts'
 import type { CetPaperStudy, CetPaperSubmission } from '../src/types/cetPaper.ts'
 import type { OutputRevision } from '../src/types/outputRevision.ts'
 import { emptyOutputRevision } from '../src/core/outputRevision.ts'
+import { createMigrationCode, decodeMigrationCode, importMigrationCode } from '../src/core/quickMigration.ts'
 
 const TABLE_KEYS = {
   words: 'id', stats: 'wordId', reviewLogs: 'id', dailyLogs: 'date', profile: 'id',
@@ -97,6 +98,165 @@ const word: Word = {
   freqRank: 100, difficultyWeight: 1,
 }
 
+test('backup: lightweight export counts omitted words and media without reading their rows or attachment bytes', async (t) => {
+  const fixture = databaseFixture(t, { words: [word], media: [{ id: 'large-audio', blob: new Blob(['audio']) }],
+    cetPapers: [paperStudy({ files: { paper: paperRef('kept-reference') } })] })
+  const fullBackup = await exportBackup()
+  assert.deepEqual(fullBackup.data.words, [word])
+  assert.equal(fullBackup.data.media[0].id, 'large-audio')
+  assert.equal(fullBackup.wordsSkipped, undefined)
+  assert.equal(fullBackup.mediaSkipped, undefined)
+  t.mock.method(db.words, 'toArray', () => { throw new Error('word bodies must not be read') })
+  t.mock.method(db.media, 'toArray', () => { throw new Error('attachment blobs must not be read') })
+  const backup = await exportBackup({ includeWords: false, includeMedia: false })
+  assert.deepEqual(backup.data.words, [])
+  assert.deepEqual(backup.data.media, [])
+  assert.equal(backup.wordsSkipped, 1)
+  assert.equal(backup.mediaSkipped, 1)
+  assert.deepEqual(backup.data.cetPapers[0].files, fixture.get<CetPaperStudy>('cetPapers', paperId)!.files)
+  const result = await createMigrationCode()
+  assert.equal(result.wordsSkipped, 1)
+  assert.equal(result.mediaSkipped, 1)
+  const decoded = await decodeMigrationCode(result.code)
+  assert.deepEqual(decoded.data?.words, [])
+  assert.deepEqual(decoded.data?.media, [])
+  assert.deepEqual(decoded.data?.cetPapers?.[0].files, backup.data.cetPapers[0].files)
+})
+
+test('backup: a migration code uses the real backup merge and repeated imports preserve rewards, receipts and revisions', async (t) => {
+  const question = rewardQuestion()
+  const progress = { [rewardKey(question)]: question }
+  const original = cetOutput({ revision: checkedOutputRevision('a revised draft', 'A revised migration draft.', 350) })
+  const paper = paperStudy({ writingRevision: checkedOutputRevision('a draft', 'A paper revision.', 250) })
+  const fixture = databaseFixture(t, { words: [word], profile: [{ ...defaultProfile(), xp: 12, coins: 7,
+    cetFoundation: 'steady', cetRewardProgress: progress, familiarWords: { ability: { excluded: true, updatedAt: 200 } } }],
+    cetPractice: [original], cetPapers: [paper], expressions: [expression()] })
+  const generated = await createMigrationCode()
+  fixture.reset({})
+  assert.equal((await importMigrationCode(generated.code)).ok, true)
+  const restored = fixture.get<Profile>('profile', 'me')!
+  assert.equal(restored.xp, 12)
+  assert.equal(restored.coins, 7)
+  assert.equal(restored.cetFoundation, 'steady')
+  assert.deepEqual(restored.cetRewardProgress, progress)
+  assert.deepEqual(restored.familiarWords, { ability: { excluded: true, updatedAt: 200 } })
+  assert.deepEqual(fixture.get<CetPracticeRecord>('cetPractice', original.id), original)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paperId), paper)
+  assert.deepEqual(fixture.get<ExpressionProgress>('expressions', expression().id), expression())
+  assert.equal(fixture.get<Word>('words', word.id), undefined)
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importMigrationCode(generated.code)).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+  assert.equal(fixture.get<DailyQuest>('quests', todayKey()), undefined)
+  const invalidCode = await importMigrationCode('WQ1.eA')
+  assert.equal(invalidCode.ok, false)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+})
+
+test('backup: lightweight migration retains exact power without word bodies across imports and later downloads', async (t) => {
+  const at = Date.UTC(2026, 5, 1)
+  const words: Word[] = [
+    { ...word, id: 'easy', word: 'easy', difficultyWeight: 1 },
+    { ...word, id: 'medium', word: 'medium', difficultyWeight: 1.3 },
+    { ...word, id: 'hard', word: 'hard', difficultyWeight: 1.6 },
+  ]
+  const reviewLogs: ReviewLog[] = words.flatMap((entry) => [0, 40, 100].map((day, index) => ({
+    id: `${entry.id}-${index}`, wordId: entry.id, mode: 'spell', correct: true, rating: 4,
+    reviewedAt: at + day * 86400000, deviceId: 'source', elapsedMs: 1000,
+  })))
+  const fixture = databaseFixture(t)
+  assert.equal((await importBackup(backupFile({ app: 'wordquest', data: { words, reviewLogs,
+    profile: [{ ...defaultProfile(), xp: 12, coins: 7 }] } }))).ok, true)
+  const sourceStats = words.map((entry) => structuredClone(fixture.get<UserWordStat>('stats', entry.id)!))
+  assert.equal(sourceStats.every((stat) => stat.state === 'mastered'), true)
+  const source = structuredClone(fixture.get<Profile>('profile', 'me')!)
+  assert.equal(source.power, 4)
+  assert.equal(source.powerPeak, 4)
+  const generated = await createMigrationCode()
+  const decoded = await decodeMigrationCode(generated.code)
+  assert.deepEqual(decoded.data?.words, [])
+  assert.deepEqual((decoded.data?.profile?.[0] as Profile).wordDifficultyWeights, { easy: 1, medium: 1.3, hard: 1.6 })
+
+  fixture.reset({})
+  assert.equal((await importMigrationCode(generated.code)).ok, true)
+  const imported = fixture.get<Profile>('profile', 'me')!
+  assert.equal(imported.power, source.power)
+  assert.equal(imported.powerPeak, source.powerPeak)
+  assert.equal(imported.xp, source.xp)
+  assert.equal(imported.coins, source.coins)
+  assert.deepEqual(words.map((entry) => fixture.get<UserWordStat>('stats', entry.id)), sourceStats)
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importMigrationCode(generated.code)).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+
+  // A second device may migrate again before it has downloaded any wordbook.
+  const forwarded = await createMigrationCode()
+  fixture.reset({})
+  assert.equal((await importMigrationCode(forwarded.code)).ok, true)
+  assert.deepEqual(await recomputePower(), { power: 4, peak: 4, masteredCount: 3 })
+  await db.words.bulkPut(words)
+  assert.deepEqual(await recomputePower(), { power: 4, peak: 4, masteredCount: 3 })
+  // Once present, a downloaded word's actual weight takes priority over cached metadata.
+  await db.words.put({ ...words[2], difficultyWeight: 1 })
+  assert.deepEqual(await recomputePower(), { power: 3, peak: 4, masteredCount: 3 })
+})
+
+test('backup: malformed word difficulty metadata is rejected without writes and older backups remain valid', async (t) => {
+  const fixture = databaseFixture(t, { profile: [{ ...defaultProfile(), xp: 12, coins: 7 }] })
+  const before = fixture.snapshot()
+  for (const wordDifficultyWeights of [null, [], '1', { easy: 0 }, { easy: -1 }, { easy: 2 }, { easy: '1' }, { easy: true }, { easy: null }, { '': 1 }]) {
+    const result = await importBackup(backupFile({ data: { reviewLogs: [],
+      profile: [{ ...defaultProfile(), wordDifficultyWeights }] } }))
+    assert.equal(result.ok, false)
+    assert.match(result.error!, /难度/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [defaultProfile()] } }))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')!.wordDifficultyWeights, undefined)
+})
+
+test('backup: difficulty metadata merges on existing devices and old codes use a conservative unknown weight', async (t) => {
+  const at = Date.UTC(2026, 5, 1)
+  const reviews = (wordId: string): ReviewLog[] => [0, 40, 100].map((day, index) => ({
+    id: `${wordId}-${index}`, wordId, mode: 'spell', correct: true, rating: 4,
+    reviewedAt: at + day * 86400000, deviceId: 'source', elapsedMs: 1000,
+  }))
+  const fixture = databaseFixture(t)
+  // Old migration codes contain neither word bodies nor difficulty metadata.
+  // A word id matching an Object prototype property must still use a numeric fallback.
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: reviews('constructor'),
+    profile: [{ ...defaultProfile(), power: 1, powerPeak: 1 }] } }))).ok, true)
+  assert.equal(fixture.get<Profile>('profile', 'me')!.power, 1)
+  assert.equal(fixture.get<Profile>('profile', 'me')!.powerPeak, 1)
+  assert.equal(fixture.get<Profile>('profile', 'me')!.wordDifficultyWeights, undefined)
+
+  await db.profile.put({ ...fixture.get<Profile>('profile', 'me')!, theme: 'night', xp: 12, coins: 7,
+    wordDifficultyWeights: { constructor: 1 } })
+  const incoming = { data: { reviewLogs: reviews('medium'), profile: [{ ...defaultProfile(), theme: 'paper',
+    wordDifficultyWeights: { constructor: 1.6, medium: 1.3 } }] } }
+  assert.equal((await importBackup(backupFile(incoming))).ok, true)
+  const merged = fixture.get<Profile>('profile', 'me')!
+  assert.deepEqual(merged.wordDifficultyWeights, { constructor: 1, medium: 1.3 })
+  assert.equal(merged.theme, 'night')
+  assert.equal(merged.xp, 12)
+  assert.equal(merged.coins, 7)
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(incoming))).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+})
+
+test('backup: lightweight export derives missing legacy difficulty from frequency without exporting word bodies', async (t) => {
+  const legacy = { ...word }
+  Reflect.deleteProperty(legacy, 'difficultyWeight')
+  const at = Date.UTC(2026, 5, 1)
+  databaseFixture(t, { words: [legacy], profile: [defaultProfile()],
+    stats: [{ wordId: word.id, fsrs: emptySnapshot(at), state: 'new', mistakeCount: 0,
+      correctCount: 0, firstSeenAt: at, lastReviewedAt: at }] })
+  const payload = await decodeMigrationCode((await createMigrationCode()).code)
+  assert.deepEqual(payload.data?.words, [])
+  assert.deepEqual((payload.data?.profile?.[0] as Profile).wordDifficultyWeights, { ability: 1 })
+})
+
 function quest(patch: Partial<DailyQuest> = {}): DailyQuest {
   return {
     date: todayKey(), questIds: ['learn-10', 'review-10', 'listen-1min'],
@@ -172,7 +332,7 @@ test('backup: optional self reported CET foundations restore only with settings 
   assert.equal((await importBackup(backupFile({ schemaVersion: 10, data: { reviewLogs: [], profile: [defaultProfile()] } }))).ok, true)
   assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'ready')
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 11)
+  assert.equal(exported.schemaVersion, 12)
   fixture.reset({})
   assert.equal((await importBackup(backupFile(exported))).ok, true)
   assert.equal(fixture.get<Profile>('profile', 'me')?.cetFoundation, 'ready')
@@ -378,7 +538,7 @@ test('backup: export/import on a clean device restores settings, inventory, ques
     cetPractice: [cetReading(), cetOutput()],
   })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 11)
+  assert.equal(exported.schemaVersion, 12)
   const localWord = { ...word, definition: '本地修订释义', bookId: 'cet4-core', unitId: 1, bookUnits: undefined }
   fixture.reset({
     words: [localWord],
@@ -746,7 +906,7 @@ test('backup: original and paper revisions round trip their separate text, reaso
     translationDraft: 'Initial translation.', translationRevision: checkedOutputRevision('Initial translation.', 'Revised translation.', 270) })
   const fixture = databaseFixture(t, { cetPractice: [original], cetPapers: [paper] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 11)
+  assert.equal(exported.schemaVersion, 12)
   assert.deepEqual(exported.data.cetPractice, [original])
   assert.deepEqual(exported.data.cetPapers, [paper])
   fixture.reset({})
@@ -863,7 +1023,7 @@ test('backup: real-paper cards, independent submissions and local documents surv
   const study = paperStudy({ files: { paper: ref } })
   const fixture = databaseFixture(t, { cetPapers: [study], media: [{ id: ref.id, blob: paperPdf }] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 11)
+  assert.equal(exported.schemaVersion, 12)
   assert.deepEqual(exported.data.cetPapers, [study])
   assert.equal(exported.data.media[0].type, 'application/pdf')
   fixture.reset({})

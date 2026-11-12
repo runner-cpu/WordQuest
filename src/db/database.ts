@@ -36,7 +36,7 @@ export async function migrateVocabularyProgress(transaction: Transaction): Promi
   if (nextStats.length > 0) await transaction.table<UserWordStat>('stats').bulkPut(nextStats)
   const mastered = nextStats.filter((stat) => stat.state === 'mastered')
   const words = await transaction.table<Word>('words').bulkGet(mastered.map((stat) => stat.wordId))
-  const power = computePower({ masteredWeights: words.map((word) => word?.difficultyWeight ?? difficultyWeight(word?.freqRank)) })
+  const power = computePower({ masteredWeights: words.map((word) => word ? word.difficultyWeight ?? difficultyWeight(word.freqRank) : 1) })
   await transaction.table<Profile>('profile').toCollection().modify((profile) => {
     profile.power = power
     profile.powerPeak = Math.max(profile.powerPeak, power)
@@ -45,8 +45,13 @@ export async function migrateVocabularyProgress(transaction: Transaction): Promi
   })
 }
 
+/** 难度缓存是可选元数据；升级只标记版本，不猜测缺失词条的难度。 */
+export async function migrateWordDifficultyMetadata(transaction: Transaction): Promise<void> {
+  await transaction.table<Profile>('profile').toCollection().modify((profile) => { profile.schemaVersion = 12 })
+}
+
 /**
- * 本地优先数据库。数据即真相：IndexedDB 是主存储，云同步只做并集合并。
+ * 本地优先数据库。IndexedDB 是主存储，手动迁移复用备份合并。
  * 迁移策略：schema 版本号递增 + upgrade()，迁移前自动快照（§8.2）。
  */
 export class WordQuestDB extends Dexie {
@@ -115,12 +120,13 @@ export class WordQuestDB extends Dexie {
     this.version(11).stores({}).upgrade(async (transaction) => {
       await transaction.table<Profile>('profile').toCollection().modify((profile) => { profile.schemaVersion = 11 })
     })
+    this.version(12).stores({}).upgrade(migrateWordDifficultyMetadata)
   }
 }
 
 export const db = new WordQuestDB()
 
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 export function todayKey(d = new Date()): string {
   const y = d.getFullYear()
@@ -165,16 +171,19 @@ export interface MediaBackupRow {
 }
 
 /**
- * 把当前 IndexedDB 全量导出为 JSON（备份/云同步 payload）。
+ * 默认把当前 IndexedDB 全量导出为 JSON 备份。
  *
  * 真题卷（exams）与导入音频（media）也在备份范围内——它们是用户花时间
  * 导入的内容，备份往返丢掉等于白做。音频超过 MEDIA_BACKUP_LIMIT 时跳过，
  * 由 mediaSkipped 计数告知调用方，避免一个 JSON 文件膨胀到几百 MB。
+ * 轻量迁移省略附件字节与词条正文，仅提取学习过的词的难度，保留学习记录和文件引用。
  */
-export async function exportBackup() {
-  const [words, stats, reviewLogs, dailyLogs, profile, achievements, quests, exams, mediaRows, adventures, expressions, cetPractice, cetPapers] =
+export async function exportBackup(options: { includeMedia?: boolean; includeWords?: boolean } = {}) {
+  const includeMedia = options.includeMedia !== false
+  const includeWords = options.includeWords !== false
+  const [words, stats, reviewLogs, dailyLogs, profile, achievements, quests, exams, mediaRows, adventures, expressions, cetPractice, cetPapers, omittedMedia, wordsSkipped] =
     await Promise.all([
-      db.words.toArray(),
+      includeWords ? db.words.toArray() : Promise.resolve([] as Word[]),
       db.stats.toArray(),
       db.reviewLogs.toArray(),
       db.dailyLogs.toArray(),
@@ -182,16 +191,33 @@ export async function exportBackup() {
       db.achievements.toArray(),
       db.quests.toArray(),
       db.exams.toArray(),
-      db.media.toArray(),
+      includeMedia ? db.media.toArray() : Promise.resolve([] as { id: string; blob: Blob }[]),
       db.adventures.toArray(),
       db.expressions.toArray(),
       db.cetPractice.toArray(),
       db.cetPapers.toArray(),
+      includeMedia ? 0 : db.media.count(),
+      includeWords ? 0 : db.words.count(),
     ])
+
+  let backupProfiles = profile
+  if (!includeWords) {
+    const wordIds = new Set([...stats.map((stat) => stat.wordId), ...reviewLogs.map((log) => log.wordId)])
+    const studiedWords = await db.words.bulkGet([...wordIds])
+    backupProfiles = profile.map((row) => {
+      const weights = new Map(Object.entries(row.wordDifficultyWeights ?? {})
+        .filter(([wordId, weight]) => wordIds.has(wordId) && [1, 1.3, 1.6].includes(weight)))
+      for (const word of studiedWords) {
+        if (word) weights.set(word.id, [1, 1.3, 1.6].includes(word.difficultyWeight)
+          ? word.difficultyWeight : difficultyWeight(word.freqRank))
+      }
+      return weights.size > 0 ? { ...row, wordDifficultyWeights: Object.fromEntries(weights) } : row
+    })
+  }
 
   const media: MediaBackupRow[] = []
   let mediaBytes = 0
-  let mediaSkipped = 0
+  let mediaSkipped = omittedMedia
   for (const row of mediaRows) {
     if (!row?.blob) continue
     if (mediaBytes + row.blob.size > MEDIA_BACKUP_LIMIT) {
@@ -206,7 +232,8 @@ export async function exportBackup() {
     app: 'wordquest',
     schemaVersion: SCHEMA_VERSION,
     exportedAt: Date.now(),
-    data: { words, stats, reviewLogs, dailyLogs, profile, achievements, quests, exams, media, adventures, expressions, cetPractice, cetPapers },
+    data: { words, stats, reviewLogs, dailyLogs, profile: backupProfiles, achievements, quests, exams, media, adventures, expressions, cetPractice, cetPapers },
     ...(mediaSkipped > 0 ? { mediaSkipped } : {}),
+    ...(wordsSkipped > 0 ? { wordsSkipped } : {}),
   }
 }

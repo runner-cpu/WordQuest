@@ -1,7 +1,7 @@
 import { db, base64ToBlob, type MediaBackupRow } from '../db/database'
 import type { ExamPaperRow } from './examImport'
 import { schedule, emptySnapshot, deriveState } from './fsrs'
-import { ensureProfile, patchProfile, recomputePower } from './profile'
+import { ensureProfile, isWordDifficultyWeights, patchProfile, recomputePower } from './profile'
 import { levelFromXp } from './game'
 import { DEFAULT_THEMES, SHOP_ITEMS } from './shop'
 import { wordBookUnits } from './wordMembership'
@@ -24,8 +24,10 @@ export interface BackupPayload {
   app?: string
   schemaVersion?: number
   exportedAt?: number
-  /** 导出时被跳过的音频或文档条数（超 MEDIA_BACKUP_LIMIT），缺省为 0 */
+  /** 导出时被跳过的音频或文档条数（超限或轻量导出），缺省为 0 */
   mediaSkipped?: number
+  /** 轻量迁移导出时省略的词条正文条数；普通 JSON 全量导出缺省为 0。 */
+  wordsSkipped?: number
   data?: {
     words?: Word[]
     stats?: UserWordStat[]
@@ -131,6 +133,13 @@ function profilePatch(local: Profile, remote: Record<string, unknown>, restoreSe
   if (local.familiarWords !== undefined || remote.familiarWords !== undefined) {
     patch.familiarWords = mergeFamiliarWords(local.familiarWords, remote.familiarWords)
   }
+  // 难度元数据与学习历史一起合并；已有进度的设备也需要尚未下载词条的权重。
+  if (local.wordDifficultyWeights !== undefined || remote.wordDifficultyWeights !== undefined) {
+    patch.wordDifficultyWeights = {
+      ...(isWordDifficultyWeights(remote.wordDifficultyWeights) ? remote.wordDifficultyWeights : {}),
+      ...(isWordDifficultyWeights(local.wordDifficultyWeights) ? local.wordDifficultyWeights : {}),
+    }
+  }
   if (restoreSettings) {
     patch.theme = remoteTheme ?? local.theme
     patch.mascot = {
@@ -207,6 +216,12 @@ export async function importBackup(file: File): Promise<ImportResult> {
     return profile && profile.cetRewardProgress !== undefined && !isCetRewardProgress(profile.cetRewardProgress)
   }))) {
     return { ok: false, error: '备份中的真题奖励凭据格式不正确', ...ZERO }
+  }
+  if (data.profile?.some((row) => {
+    const profile = record(row)
+    return profile && profile.wordDifficultyWeights !== undefined && !isWordDifficultyWeights(profile.wordDifficultyWeights)
+  })) {
+    return { ok: false, error: '备份中的词条难度元数据格式不正确', ...ZERO }
   }
   if (data.cetPapers !== undefined && (!Array.isArray(data.cetPapers) ||
     data.cetPapers.some((row) => !isCetPaperStudy(row)) ||

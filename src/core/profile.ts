@@ -48,6 +48,11 @@ export async function patchProfile(patch: Partial<Profile>): Promise<Profile> {
   return next
 }
 
+export function isWordDifficultyWeights(value: unknown): value is NonNullable<Profile['wordDifficultyWeights']> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.entries(value).every(([wordId, weight]) => wordId && [1, 1.3, 1.6].includes(weight)))
+}
+
 /** 熟词标记仅安排队列：保留 FSRS、作答日志和奖励，并串行合并跨标签修改。 */
 export async function setFamiliarWord(wordId: string, excluded: boolean): Promise<Profile> {
   return db.transaction('rw', db.profile, async () => {
@@ -132,9 +137,14 @@ export async function recomputePower(): Promise<{ power: number; peak: number; m
   const mastered = await db.stats.where('state').equals('mastered').toArray()
   // 一次 bulkGet 取齐，别对每个掌握词发一条 get（千词即千次串行查询）
   const words = await db.words.bulkGet(mastered.map((s) => s.wordId))
-  const weights = words.map((w) => w?.difficultyWeight ?? difficultyWeight(w?.freqRank))
-  const power = computePower({ masteredWeights: weights })
   const profile = await ensureProfile()
+  const weights = words.map((word, index) => {
+    if (word) return word.difficultyWeight ?? difficultyWeight(word.freqRank)
+    const cached = profile.wordDifficultyWeights?.[mastered[index].wordId]
+    // 旧码缺少难度时只计最低合法权重，不用最高默认值制造不可回退的峰值。
+    return typeof cached === 'number' && [1, 1.3, 1.6].includes(cached) ? cached : 1
+  })
+  const power = computePower({ masteredWeights: weights })
   const peak = Math.max(profile.powerPeak, power)
   const rankId = [...RANKS].reverse().find((r) => peak >= r.threshold)?.id ?? RANKS[0].id
   await patchProfile({ power, powerPeak: peak, rankId })

@@ -15,6 +15,8 @@ import { HUE_PRESETS, applyCustomHue, clearCustomHue, customTokens } from '../co
 import { DEFAULT_DAILY_NEW_TARGET } from '../core/vocabProgress'
 import type { BookId } from '../types/model'
 import { PlanningPreferences, type PlanningPreferencesValue } from './PlanningPreferences'
+import { createMigrationCode, importMigrationCode } from '../core/quickMigration'
+import { QuickMigrationPanel, type MigrationImportResult } from './QuickMigrationPanel'
 
 import { THEMES, STYLES, applyTheme, applyStyle, readAppearance, rememberAppearance } from '../ui/theme'
 export { THEMES, STYLES, applyTheme, applyStyle } from '../ui/theme'
@@ -28,9 +30,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState<BookId | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<{ done: number; total: number } | null>(null)
-  const [dataBusy, setDataBusy] = useState<'export' | 'import' | null>(null)
+  const [dataBusy, setDataBusy] = useState<'export' | 'import' | 'migration-export' | 'migration-import' | null>(null)
   const [dataFeedback, setDataFeedback] = useState<{ text: string; error: boolean } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const jsonControls = useRef<HTMLDivElement>(null)
   const dataLock = useRef(false)
   const studyChangeLock = useRef(false)
   const [storage, setStorage] = useState<StorageInfo | null>(null)
@@ -145,6 +148,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
     setDataBusy('export')
     setDataFeedback(null)
     try {
+      await planningQueue.current
       const data = await exportBackup()
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -166,16 +170,46 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
     setDataBusy('import')
     setDataFeedback(null)
     try {
+      await planningQueue.current
       const res = await importBackup(file)
       if (!res.ok) { setDataFeedback({ text: res.error ?? '导入失败，请检查备份文件后重试。', error: true }); return }
-      const fresh = await ensureProfile()
-      setProfile(fresh)
-      applyTheme(fresh.theme, fresh.customHue)
-      applyStyle(fresh.styleId ?? 'pixel')
+      await refreshImportedSettings()
       setDataFeedback({ text: `已合并 ${res.addedLogs} 条复习记录，恢复 ${res.addedWords} 个词条、${res.addedCetPapers} 份真题档案、${res.addedExams} 个听力练习包与 ${res.addedMedia} 个音频或文档附件。已有记录会保留。`, error: false })
-      void storageInfo().then(setStorage)
     } catch {
       setDataFeedback({ text: '备份导入失败，请检查文件和可用存储空间后重试。', error: true })
+    } finally { dataLock.current = false; setDataBusy(null) }
+  }
+
+  async function refreshImportedSettings() {
+    const fresh = await ensureProfile()
+    setProfile(fresh)
+    applyTheme(fresh.theme, fresh.customHue)
+    applyStyle(fresh.styleId ?? 'pixel')
+    void storageInfo().then(setStorage).catch(() => {})
+  }
+
+  async function doMigrationExport() {
+    if (dataLock.current) return null
+    dataLock.current = true
+    setDataBusy('migration-export')
+    setDataFeedback(null)
+    try {
+      await planningQueue.current
+      return await createMigrationCode()
+    } finally { dataLock.current = false; setDataBusy(null) }
+  }
+
+  async function doMigrationImport(code: string): Promise<MigrationImportResult | null> {
+    if (dataLock.current) return null
+    dataLock.current = true
+    setDataBusy('migration-import')
+    setDataFeedback(null)
+    try {
+      await planningQueue.current
+      const result = await importMigrationCode(code)
+      if (!result.ok) return result
+      try { await refreshImportedSettings(); return result }
+      catch { return { ...result, refreshWarning: '记录已合并，但页面设置暂未刷新，请刷新页面后确认。' } }
     } finally { dataLock.current = false; setDataBusy(null) }
   }
 
@@ -288,10 +322,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             </div>
           </Field>
 
-          <PlanningPreferences {...planningDraft} disabled={!profile} onChange={changePlanning} />
+          <PlanningPreferences {...planningDraft} disabled={!profile || dataBusy !== null} onChange={changePlanning} />
           {planningStatus === 'failed' ? <div className="readable space-y-2 text-[16px] leading-relaxed">
             <p className="text-fail" role="alert">学习规划暂未保存，输入已保留。请重试保存。</p>
-            <PixelButton size="sm" onClick={savePlanning}>重试保存学习规划</PixelButton>
+            <PixelButton size="sm" disabled={dataBusy !== null} onClick={savePlanning}>重试保存学习规划</PixelButton>
           </div> : planningStatus !== 'idle' && <p className="readable text-[16px] leading-relaxed text-dim" role="status">{planningStatus === 'saving' ? '正在保存学习规划…' : '学习规划已保存到本机'}</p>}
         </div>
       </Panel>
@@ -435,12 +469,14 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <Panel>
         <SectionHead>数据</SectionHead>
         <div className="space-y-2">
+          <div ref={jsonControls} className="space-y-2">
           <PixelButton className="w-full" onClick={() => void doExport()} disabled={dataBusy !== null} aria-busy={dataBusy === 'export'}>
             {dataBusy === 'export' ? '正在生成备份…' : '导出数据备份（JSON）'}
           </PixelButton>
           <PixelButton className="w-full" onClick={() => fileInput.current?.click()} disabled={dataBusy !== null} aria-busy={dataBusy === 'import'}>
             {dataBusy === 'import' ? '正在合并备份…' : '导入备份并合并'}
           </PixelButton>
+          </div>
           <input
               ref={fileInput}
               type="file"
@@ -454,6 +490,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
               }}
           />
           {dataFeedback && <p className={`readable border-2 border-edge bg-panel-2 p-3 text-px12 ${dataFeedback.error ? 'text-fail' : 'text-pass'}`} role={dataFeedback.error ? 'alert' : 'status'}>{dataFeedback.text}</p>}
+          <QuickMigrationPanel busy={dataBusy !== null} generating={dataBusy === 'migration-export'} importing={dataBusy === 'migration-import'}
+            onGenerate={doMigrationExport} onImport={doMigrationImport} onUseJson={() => { jsonControls.current?.scrollIntoView({ block: 'nearest' }); jsonControls.current?.querySelector('button')?.focus() }} />
           <PixelButton
             className="w-full"
             onClick={() => {
