@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import { CET_PAPER_SOURCES } from '../data/cetPaperSources'
 import { buildPaperReport } from '../core/learningReport'
+import { buildCetAnalysisCoverage } from '../core/cetAnalysisCoverage'
 import { useUi } from '../state/ui'
 import { Panel, PixelButton, SectionHead } from '../ui/Pixel'
 
@@ -12,16 +13,18 @@ export function CetProgressReport() {
   const data = useLiveQuery(async () => {
     const [papers, practices] = await Promise.all([db.cetPapers.toArray(), db.cetPractice.where('examType').equals(level).toArray()])
     const sourceIds = new Set(CET_PAPER_SOURCES.filter(source => source.level === level).map(source => source.id))
-    return { report: buildPaperReport(papers.filter(paper => sourceIds.has(paper.sourceId))), practices }
+    const studies = papers.filter(paper => sourceIds.has(paper.sourceId))
+    return { report: buildPaperReport(studies), coverage: buildCetAnalysisCoverage(studies), practices }
   }, [level])
   if (!data) return <Panel><p role="status" className="readable text-dim">正在读取真题与专项记录…</p></Panel>
-  const { report, practices } = data
+  const { report, coverage, practices } = data
   const pending = report.sections.reduce((sum, section) => sum + section.pending, 0)
   const priority = [...report.sections].sort((a, b) => b.pending - a.pending)[0]
   const hasActivity = report.papers > 0 || practices.some(row => row.draft.trim() || row.completedAt)
   return <Panel as="section" className="cet-progress-report">
     <SectionHead>{level === 'cet4' ? '四级' : '六级'}练习报告</SectionHead>
     <p className="readable text-dim">{hasActivity ? `已练 ${report.papers} 套真题 · 待订正 ${pending} 题` : '从一段听力或一篇阅读开始，作答和核对后就能看到各题型记录。'}</p>
+    <p className="readable mt-3 text-dim">已有解析的已做题 {coverage.covered}/{coverage.answered} · 人工已核验 {coverage.verified} 题{coverage.pendingReview > 0 ? ` · 待人工核验 ${coverage.pendingReview} 题` : ''}。解析覆盖为部分卷别；草稿解析仅供复盘参考。</p>
     {report.papers > 0 && <>
       <div className="overflow-x-auto mt-3">
         <table className="learning-report-table readable">

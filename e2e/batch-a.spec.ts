@@ -1,0 +1,47 @@
+import { test, expect } from '@playwright/test'
+import { enterApp, navigate, openReading, exitPaper } from './helpers'
+
+test('A: correction opens a labelled draft analysis and evidence persists in review notes', async ({ page }) => {
+  await enterApp(page)
+  await openReading(page)
+  await page.getByRole('button', { name: '阅读 46–55', exact: true }).click()
+  await page.locator('#ready-q-46 input[value="A"]').check()
+  await page.getByRole('button', { name: '提交核对', exact: true }).click()
+  await page.getByRole('button', { name: '确认核对 1 题', exact: true }).click()
+  await page.getByRole('button', { name: '待订正 1', exact: true }).click()
+  await page.getByRole('button', { name: '第 46 题，待订正', exact: true }).click()
+  const analysis = page.getByRole('region', { name: '第 46 题解析', exact: true })
+  await expect(analysis).toBeVisible()
+  await expect(analysis).toContainText('待人工核验')
+  await expect(analysis.getByRole('button', { name: '将证据句加入复盘笔记', exact: true })).toBeVisible()
+  await analysis.getByRole('button', { name: '将证据句加入复盘笔记', exact: true }).click()
+  await exitPaper(page)
+  await openReading(page)
+  await page.getByRole('button', { name: '复盘与缓存', exact: true }).click()
+  await expect(page.getByLabel('复盘笔记', { exact: true })).toHaveValue(/第 46 题/)
+  await exitPaper(page)
+  await navigate(page, '统计')
+  await expect(page.getByText('解析覆盖为部分卷别', { exact: false })).toBeVisible()
+})
+
+test('A: missing listening analysis has an explicit fallback instead of an empty panel', async ({ page }) => {
+  await enterApp(page)
+  await navigate(page, '听力')
+  await page.getByRole('button', { name: /开始2026年6月四级.*听力/ }).click()
+  await page.locator('#ready-q-1 input[value="A"]').check()
+  await page.getByRole('button', { name: '提交核对', exact: true }).click()
+  await page.getByRole('button', { name: '确认核对 1 题', exact: true }).click()
+  await page.getByRole('button', { name: '第 1 题，待订正', exact: true }).click()
+  await expect(page.getByRole('region', { name: '第 1 题解析', exact: true })).toContainText('本题暂无结构化解析，仅提供参考答案')
+})
+
+test('A: continuing an unanswered question does not open its reference answer', async ({ page }) => {
+  await enterApp(page)
+  await openReading(page)
+  await page.getByRole('button', { name: '阅读 46–55', exact: true }).click()
+  await page.locator('#ready-q-46 input[value="A"]').check()
+  await page.getByRole('button', { name: '提交核对', exact: true }).click()
+  await page.getByRole('button', { name: '确认核对 1 题', exact: true }).click()
+  await page.getByRole('button', { name: '继续未答题 · 26', exact: true }).click()
+  await expect(page.getByRole('region', { name: '第 26 题解析', exact: true })).toHaveCount(0)
+})

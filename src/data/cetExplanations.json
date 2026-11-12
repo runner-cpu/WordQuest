@@ -1,0 +1,505 @@
+{
+  "schema": 1,
+  "papers": [
+    {
+      "sourceId": "cet4-202606-set1-nju",
+      "paperRevision": "4222c1c11c62fb7c",
+      "questions": [
+        {
+          "number": 46,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.3 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。两句由 on the one hand / on the other hand 构成取舍：想买最好的食物，但预算有限，合起来对应 D。",
+          "evidence": [
+            {
+              "text": "On the one hand, your family dinner table deserves only the best.",
+              "question": 46,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.3"
+            },
+            {
+              "text": "On the other hand, your wallet can only stretch so far.",
+              "question": 46,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.3"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "scope-shift",
+              "explanation": "A 只把问题表述为是否吃有机食品，没有说明题目所问 dilemma 中“最好品质”与“有限预算”的冲突，概括不完整。"
+            },
+            {
+              "option": "B",
+              "type": "scope-shift",
+              "explanation": "B 只保留钱包/支出的一面，遗漏想给家人最好食物的一面；题目要找的是两者之间的矛盾。"
+            },
+            {
+              "option": "C",
+              "type": "not-mentioned",
+              "explanation": "文章以有机食品是否值得更高价格开篇，但没有断言它 certainly tastes better；“肯定更美味”无原文依据。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "your wallet can only stretch so far",
+              "alternative": "your budget is limited"
+            },
+            {
+              "original": "your family dinner table deserves only the best",
+              "alternative": "you want the best food for your family"
+            }
+          ]
+        },
+        {
+          "number": 47,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.3 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。题目问科学能否确定有机食品总体更好，原文明确说没有清晰结论，A 的 remains uncertain 对应这一点；随后营养方面的确定结论不能扩大成总体优越。",
+          "evidence": [
+            {
+              "text": "Science won't give a clear-cut answer to the question of whether organic food is \"better.\"",
+              "question": 47,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.3"
+            },
+            {
+              "text": "One thing is definitive: Organic and conventionally grown food are equally nutritious.",
+              "question": 47,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.3"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "B",
+              "type": "scope-shift",
+              "explanation": "B 把较宽的 better 改成 healthier，并说仍在考虑；本文没有给出“是否更健康正在研究”这一具体结论，不能替代原文的总体不确定性。"
+            },
+            {
+              "option": "C",
+              "type": "mismatch",
+              "explanation": "C 说是否更有营养尚可争论，但紧随其后的原文说 equally nutritious / no difference，和这一明确结论不符。"
+            },
+            {
+              "option": "D",
+              "type": "not-mentioned",
+              "explanation": "原文没有讨论有机食品将来是否会取代传统食品；replace conventional food 不是题目定位句涉及的话题。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "a clear-cut answer",
+              "alternative": "a definite answer"
+            },
+            {
+              "original": "won't give a clear-cut answer",
+              "alternative": "remains uncertain"
+            }
+          ]
+        },
+        {
+          "number": 48,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。题干限定食品安全角度，no big difference 与 D 的 no substantial difference 是直接对应。",
+          "evidence": [
+            {
+              "text": "There is also no big difference between organic and non-organic products from a food-safety perspective.",
+              "question": 48,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Even organic growers use pesticides.",
+              "question": 48,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "not-mentioned",
+              "explanation": "文章没有说明两类食品的差别来自测试惯例或测试方法；conventions used to test them 没有原文依据。"
+            },
+            {
+              "option": "B",
+              "type": "scope-shift",
+              "explanation": "文中确实讨论用药量及残留，但题干问食品安全的整体比较；把局部用药细节当成两类食品在安全上的主要差别，偏离定位句。"
+            },
+            {
+              "option": "C",
+              "type": "mismatch",
+              "explanation": "C 断言一类依赖农药而另一类不用；原文 even organic growers use pesticides 明确说明有机种植也使用农药。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "no big difference",
+              "alternative": "no substantial difference"
+            },
+            {
+              "original": "from a food-safety perspective",
+              "alternative": "as far as food safety is concerned"
+            }
+          ]
+        },
+        {
+          "number": 49,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。总体结论是有机农业“可能”造成较小环境影响，C 保留 may 的限定；较低地下水污染风险是后面的支持细节。TODO：B 的概括程度与 C 的最佳性需由人工结合题干确认，不把“只提细节”泛化成事实错误。",
+          "evidence": [
+            {
+              "text": "On the whole, organic agriculture may have a smaller environmental footprint.",
+              "question": 49,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "That's mostly because the risk of groundwater contamination from organic farming is lower.",
+              "question": 49,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Organic farmers never used neonics, the controversial pesticides that have been linked to shrinking bee populations worldwide.",
+              "question": 49,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "mismatch",
+              "explanation": "原文将蜜蜂减少与 neonics 联系，并说有机农场从不用这种农药；A 却把责任归给有机农业，改变了原文关系。"
+            },
+            {
+              "option": "B",
+              "type": "scope-shift",
+              "explanation": "原文只就 neonics 这一特定争议农药说 never used；B 泛指减少有争议农药的使用，且未概括总体环境影响，不能直接替代段落主结论。"
+            },
+            {
+              "option": "D",
+              "type": "mismatch",
+              "explanation": "原文说有机农业的地下水污染风险 lower，D 的 as much as 把较低风险改成相同程度。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "a smaller environmental footprint",
+              "alternative": "less impact on the environment"
+            },
+            {
+              "original": "the risk of groundwater contamination from organic farming is lower",
+              "alternative": "there is less risk of groundwater contamination"
+            }
+          ]
+        },
+        {
+          "number": 50,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。支持者提出的是有条件判断：给予有机农业与传统农业同等的研究和资金，产量与效率可能显著提高，B 保留研究与投入这两个条件。",
+          "evidence": [
+            {
+              "text": "On the other hand, advocates of organic farming argue yields and efficiency could be significantly improved if the food industry devoted as much research and money to organic farming as it does conventional agriculture.",
+              "question": 50,
+              "section": "careful",
+              "passageIndex": 0,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "not-mentioned",
+              "explanation": "原文提出 research and money，没有说新技术出现后产量会 quickly 增加；不能用常识补出速度和技术条件。"
+            },
+            {
+              "option": "C",
+              "type": "not-mentioned",
+              "explanation": "定位句没有承诺巨大的健康收益；前文关于营养的比较也不能支持 enormous health benefits。"
+            },
+            {
+              "option": "D",
+              "type": "concept-swap",
+              "explanation": "题目问支持者如何提高 yields and efficiency，D 换成降低环境成本；这是把产量效率的改进与环境影响混为一谈。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "significantly improved",
+              "alternative": "improve remarkably"
+            },
+            {
+              "original": "research and money",
+              "alternative": "research and investment"
+            }
+          ]
+        },
+        {
+          "number": 51,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。one recent study 的发现是自私比合作有利，但后一句限制为可能短暂；A 概括为短期某些收益。后一项长期合作表现来自另一研究，应区分来源。",
+          "evidence": [
+            {
+              "text": "It found that being selfish was more advantageous than cooperating.",
+              "question": 51,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "The benefit may be short-lived, however.",
+              "question": 51,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Another study showed that players who cooperated did better in the long run.",
+              "question": 51,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "B",
+              "type": "mismatch",
+              "explanation": "B 说弊通常多于利，与该研究中 more advantageous 的表述方向相反。"
+            },
+            {
+              "option": "C",
+              "type": "scope-shift",
+              "explanation": "C 是对“自私”含义的概括，没有表达题目所问研究发现的“相对合作更有利且收益可能短暂”。"
+            },
+            {
+              "option": "D",
+              "type": "scope-shift",
+              "explanation": "D 把答案转到长期可能让位于合作；原文长期合作表现属于 another study，题干指定的是 one recent study 关于自私的发现。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "short-lived",
+              "alternative": "lasting only a short time"
+            },
+            {
+              "original": "more advantageous",
+              "alternative": "bringing greater benefits"
+            }
+          ]
+        },
+        {
+          "number": 52,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。高校参考答案为 B，简析将双胞胎研究归结为基因对行为的明显影响。定位句确实支持 genetic effects，但不直接量化为 B 的 largely determined；末段还排除完全由基因决定。TODO：必须人工复核 B 中 largely determined 的强度及本整理版题目/答案对应；本条仍是未核验草案，不将“基因影响”讲成基因决定论。",
+          "evidence": [
+            {
+              "text": "By comparing identical twins, who share nearly 100 percent of their genes, and non-identical twins, who share about half, researchers have found overwhelming evidence for genetic effects on behaviors.",
+              "question": 52,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Yet almost no behavior is entirely genetic, even among identical twins.",
+              "question": 52,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "scope-shift",
+              "explanation": "nearly 100 percent 与 about half 描述同卵/异卵双胞胎各自共享基因的比例，是研究比较的背景；A 把它改成“双胞胎基因数量极不相同”的结论，未回答研究发现。"
+            },
+            {
+              "option": "C",
+              "type": "concept-swap",
+              "explanation": "文中 genes 是用来研究行为生物根源的因素；C 把“识别行为的生物根源”改成“由基因识别一个人的生物根源”，对象发生变化。"
+            },
+            {
+              "option": "D",
+              "type": "scope-shift",
+              "explanation": "D 只笼统说行为模式不同，遗漏题干研究据此得到的基因影响。原文定位句强调 genetic effects，而非仅列差异。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "genetic effects on behaviors",
+              "alternative": "genes can influence behavior"
+            },
+            {
+              "original": "overwhelming evidence",
+              "alternative": "very strong evidence"
+            }
+          ]
+        },
+        {
+          "number": 53,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。identified 的直接宾语是 a gene；C 的 a specific gene associated with altruistic behavior 与前半句直接对应。后半句补充该基因一个变体与自私行为相关。TODO：人工审校 A/C 的干扰唯一性；linked/associated 是相关，不是已证明的决定性因果。",
+          "evidence": [
+            {
+              "text": "My colleagues and I recently identified a gene linked to altruistic behavior and found that a particular variant of it was associated with more selfish behavior in preschoolers.",
+              "question": 53,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "scope-shift",
+              "explanation": "A 截取后半句中学前儿童自私行为的相关性，并把识别对象表述为行为；题干问作者团队 identified 什么，前半句直接指向基因。A 与后半事实有关，不能简单说原文完全未提。"
+            },
+            {
+              "option": "B",
+              "type": "over-inference",
+              "explanation": "原文只报告特定基因及相关性，B 扩大为决定利他行为的关键因素，determine 的因果强度也超过 linked / associated。"
+            },
+            {
+              "option": "D",
+              "type": "scope-shift",
+              "explanation": "原文讨论利他/自私这一类行为与一个基因的联系，D 扩为基因塑造整体性格的作用，范围更宽。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "linked to",
+              "alternative": "associated with"
+            },
+            {
+              "original": "altruistic behavior",
+              "alternative": "behavior intended to help others"
+            }
+          ]
+        },
+        {
+          "number": 54,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。first among relatives 与 A 的 initially ... linked by blood 对应；may 在原句和选项中都表示可能，不是确定的历史断言。",
+          "evidence": [
+            {
+              "text": "According to evolutionary scientists, cooperative behavior may have evolved first among relatives to promote the continuation of their genetic line.",
+              "question": 54,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "As communities diversified, mutual support could have broadened to include individuals not linked by blood.",
+              "question": 54,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Groups of highly cooperative individuals have higher chances of survival because they can work together to reach goals that are unattainable to less cooperative groups.",
+              "question": 54,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "B",
+              "type": "concept-swap",
+              "explanation": "原文说随着社群多样化，互助可能扩展到非血亲；B 改成合作行为造成社群多样化，改变了事件之间的关系。"
+            },
+            {
+              "option": "C",
+              "type": "scope-shift",
+              "explanation": "C 讨论合作建立亲属间关系的作用，而定位句讨论合作首先在亲属中演化并延续基因的可能起源；不是同一研究结论。"
+            },
+            {
+              "option": "D",
+              "type": "over-inference",
+              "explanation": "原文用 higher chances of survival 和 can work together 表述优势，D 的 guarantees 把机会和能力扩大成必然达成目标。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "first among relatives",
+              "alternative": "initially among individuals linked by blood"
+            },
+            {
+              "original": "may have evolved",
+              "alternative": "may have originated"
+            }
+          ]
+        },
+        {
+          "number": 55,
+          "verified": false,
+          "sourceNote": "依据本套 paper.json 原文与 answers.pdf p.4 的参考答案/简析整理；以下推理和干扰项归类由模型撰写，尚未人工核验。文化、学校教育和家庭教养都会影响合作，因此可推得合作行为能够受到培养，D 使用 may，保留推断的限定。",
+          "evidence": [
+            {
+              "text": "Yet almost no behavior is entirely genetic, even among identical twins.",
+              "question": 55,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Culture, schooling and parenting are important determinants of cooperation.",
+              "question": 55,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            },
+            {
+              "text": "Thus, the degree to which we act cooperatively or selfishly is unique to each individual and depends on a variety of genetic and environmental influences.",
+              "question": 55,
+              "section": "careful",
+              "passageIndex": 1,
+              "sourceRef": "answers.pdf p.4"
+            }
+          ],
+          "distractors": [
+            {
+              "option": "A",
+              "type": "scope-shift",
+              "explanation": "末段提到同卵双胞胎是为了说明行为也不全由基因决定，并非要证明同卵双胞胎普遍表现合作；A 没有抓住段落主旨。"
+            },
+            {
+              "option": "B",
+              "type": "mismatch",
+              "explanation": "B 把人分为天生合作或不合作两类；原文说每个人受多种基因与环境影响，反对这种二分且固定的理解。"
+            },
+            {
+              "option": "C",
+              "type": "over-inference",
+              "explanation": "基因是影响因素之一，但末段同时强调文化、教育和教养；C 的 determine 若理解为单由基因决定，就超出原文的多因素解释。"
+            }
+          ],
+          "paraphrase": [
+            {
+              "original": "schooling and parenting",
+              "alternative": "education and upbringing"
+            },
+            {
+              "original": "are important determinants of cooperation",
+              "alternative": "can shape how cooperatively people behave"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
