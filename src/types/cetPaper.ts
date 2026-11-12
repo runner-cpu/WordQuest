@@ -16,6 +16,13 @@ export interface CetPaperSubmission {
   submittedAt: number
 }
 
+export interface CetCorrectionEvidence {
+  text: string
+  recordedAt: number
+  /** 录入依据时，该题最近一次核对的时刻。 */
+  previousSubmittedAt: number
+}
+
 export interface CetPaperStudy {
   id: string
   sourceId: string
@@ -29,6 +36,8 @@ export interface CetPaperStudy {
   writingDraft: string
   translationDraft: string
   notes: string
+  /** 由明确的单题证据操作登记；公共笔记不自动成为订正证据。 */
+  correctionEvidence?: Record<string, CetCorrectionEvidence>
   elapsedSeconds: number
   files: Partial<Record<CetPaperFileKind, CetPaperFileRef>>
   firstSubmission?: CetPaperSubmission

@@ -2,11 +2,12 @@ import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
 import { blobToBase64, db, exportBackup, MEDIA_BACKUP_LIMIT, todayKey } from '../src/db/database.ts'
 import { CET_PAPER_SOURCES } from '../src/data/cetPaperSources.ts'
+import { CET_READY_PAPERS } from '../src/core/cetReadyPapers.ts'
 import { importBackup, type BackupPayload } from '../src/core/backup.ts'
 import { defaultProfile, emptyDaily } from '../src/core/profile.ts'
 import { emptySnapshot } from '../src/core/fsrs.ts'
 import { claimChest } from '../src/core/progress.ts'
-import type { AdventureProgress, CetPracticeRecord, DailyQuest, ExpressionProgress, Profile, ReviewLog, UserWordStat, Word } from '../src/types/model.ts'
+import type { AdventureProgress, CetPracticeRecord, CetRewardQuestionProgress, DailyQuest, ExpressionProgress, Profile, ReviewLog, UserWordStat, Word } from '../src/types/model.ts'
 import type { CetPaperStudy, CetPaperSubmission } from '../src/types/cetPaper.ts'
 
 const TABLE_KEYS = {
@@ -126,6 +127,144 @@ function cetOutput(patch: Partial<CetPracticeRecord> = {}): CetPracticeRecord {
   }
 }
 
+const rewardPaper = CET_READY_PAPERS[0]
+type RewardQuestion = CetRewardQuestionProgress
+function rewardQuestion(patch: Partial<RewardQuestion> = {}): RewardQuestion {
+  return { sourceId: rewardPaper.sourceId, paperRevision: rewardPaper.revision, number: 46,
+    first: 'wrong', firstSubmittedAt: 100, last: 'correct', lastSubmittedAt: 300,
+    paid: { correction: 300 }, ...patch }
+}
+function rewardKey(question: RewardQuestion): string {
+  return `${question.sourceId}:${question.paperRevision}:${question.number}`
+}
+
+test('backup: CET reward receipts merge by source, revision and question even when local settings are retained', async (t) => {
+  const localQuestion = rewardQuestion()
+  const remoteQuestion = rewardQuestion({ firstSubmittedAt: 50, lastSubmittedAt: 500,
+    paid: { correction: 250, evidence: 400 } })
+  const oldEdition = rewardQuestion({ paperRevision: '0123456789abcdef', number: 55,
+    first: 'correct', firstSubmittedAt: 20, lastSubmittedAt: 20, paid: { firstCorrect: 20 } })
+  const otherSource = rewardQuestion({ sourceId: CET_READY_PAPERS[1].sourceId,
+    paperRevision: CET_READY_PAPERS[1].revision, first: 'correct', paid: { firstCorrect: 100 } })
+  const localProgress = { [rewardKey(localQuestion)]: localQuestion, [rewardKey(otherSource)]: otherSource }
+  const fixture = databaseFixture(t, { profile: [{ ...defaultProfile(), xp: 12, coins: 7,
+    theme: 'paper', cetRewardProgress: localProgress }] })
+  const payload: BackupPayload = { schemaVersion: 8, data: { reviewLogs: [], profile: [{
+    ...defaultProfile(), xp: 9, coins: 3, theme: 'sunset', cetRewardProgress: {
+      [rewardKey(remoteQuestion)]: remoteQuestion, [rewardKey(oldEdition)]: oldEdition,
+    },
+  }] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  const restored = fixture.get<Profile & { cetRewardProgress: Record<string, RewardQuestion> }>('profile', 'me')!
+  assert.equal(restored.theme, 'paper')
+  assert.equal(restored.xp, 12)
+  assert.equal(restored.coins, 7)
+  assert.deepEqual(restored.cetRewardProgress, {
+    [rewardKey(localQuestion)]: { ...remoteQuestion, paid: { correction: 250, evidence: 400 } },
+    [rewardKey(otherSource)]: otherSource, [rewardKey(oldEdition)]: oldEdition,
+  })
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+  assert.equal(fixture.get<DailyQuest>('quests', todayKey()), undefined)
+})
+
+test('backup: CET reward receipts survive clean-device round trips and old backups without the new field', async (t) => {
+  const question = rewardQuestion()
+  const progress = { [rewardKey(question)]: question }
+  const fixture = databaseFixture(t, { profile: [{ ...defaultProfile(), cetRewardProgress: progress }] })
+  const exported = await exportBackup()
+  assert.deepEqual((exported.data.profile[0] as Profile & { cetRewardProgress: unknown }).cetRewardProgress, progress)
+  fixture.reset({})
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.deepEqual(fixture.get<Profile & { cetRewardProgress: unknown }>('profile', 'me')?.cetRewardProgress, progress)
+  assert.equal((await importBackup(backupFile({ schemaVersion: 7, data: { reviewLogs: [], profile: [defaultProfile()] } }))).ok, true)
+  assert.deepEqual(fixture.get<Profile & { cetRewardProgress: unknown }>('profile', 'me')?.cetRewardProgress, progress)
+  assert.equal((await importBackup(backupFile({ schemaVersion: 6, data: { reviewLogs: [] } }))).ok, true)
+  assert.deepEqual(fixture.get<Profile & { cetRewardProgress: unknown }>('profile', 'me')?.cetRewardProgress, progress)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.xp, 0)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.coins, 0)
+})
+
+test('backup: consumed CET reward kinds retain tombstones and real receipt timestamps without paying again', async (t) => {
+  const local = rewardQuestion({ paid: { correction: 0, evidence: 400 } })
+  const incoming = rewardQuestion({ paid: { correction: 250, evidence: 0 } })
+  const fixture = databaseFixture(t, { profile: [{ ...defaultProfile(),
+    cetRewardProgress: { [rewardKey(local)]: local } }] })
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], profile: [{
+    ...defaultProfile(), cetRewardProgress: { [rewardKey(incoming)]: incoming },
+  }] } }))).ok, true)
+  const progress = fixture.get<Profile & { cetRewardProgress: Record<string, RewardQuestion> }>('profile', 'me')!.cetRewardProgress
+  assert.deepEqual(progress[rewardKey(local)].paid, { correction: 250, evidence: 400 })
+  assert.equal(fixture.get<Profile>('profile', 'me')?.xp, 0)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.coins, 0)
+})
+
+test('backup: malformed CET reward receipts reject the whole import before writing any table', async (t) => {
+  const question = rewardQuestion()
+  const key = rewardKey(question)
+  const fixture = databaseFixture(t, { profile: [defaultProfile()] })
+  const before = fixture.snapshot()
+  const malformed: unknown[] = [null, [], 'invalid',
+    { [key]: null }, { [key]: [] }, { invalid: question },
+    { [key]: { ...question, sourceId: 'unknown' } },
+    { [key]: { ...question, paperRevision: 'wrong-revision' } },
+    ...[0, 56, 1.5].map((number) => ({ [key]: { ...question, number } })),
+    { [key]: { ...question, first: 'pending' } }, { [key]: { ...question, last: 'pending' } },
+    { [key]: { ...question, firstSubmittedAt: -1 } },
+    { [key]: { ...question, firstSubmittedAt: 0.5 } },
+    { [key]: { ...question, lastSubmittedAt: 99 } },
+    { [key]: { ...question, lastSubmittedAt: null } },
+    { [key]: { ...question, paid: null } }, { [key]: { ...question, paid: [] } },
+    { [key]: { ...question, paid: { mystery: 300 } } },
+    { [key]: { ...question, paid: { correction: -1 } } },
+    { [key]: { ...question, paid: { correction: 0.5 } } },
+    { [key]: { ...question, paid: { correction: '300' } } },
+  ]
+  for (const cetRewardProgress of malformed) {
+    const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word],
+      profile: [{ ...defaultProfile(), cetRewardProgress }],
+    } }))
+    assert.equal(result.ok, false, JSON.stringify(cetRewardProgress))
+    assert.match(result.error!, /真题.*奖励.*凭据/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+  const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word],
+    profile: [defaultProfile(), { cetRewardProgress: null }],
+  } }))
+  assert.equal(result.ok, false, 'a malformed later profile row cannot bypass receipt validation')
+  assert.deepEqual(fixture.snapshot(), before)
+  for (const profile of [null, 'invalid', { cetRewardProgress: { [key]: question } }]) {
+    const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word], profile } }))
+    assert.equal(result.ok, false, 'a malformed profile table cannot silently drop reward receipts')
+    assert.match(result.error!, /真题.*奖励.*凭据/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+})
+
+test('backup: imported CET receipts prevent another study from issuing the same question reward', async (t) => {
+  const { readFile } = await import('node:fs/promises')
+  const bytes = await readFile(new URL(`../public/${rewardPaper.path}`, import.meta.url))
+  const paper = JSON.parse(bytes.toString()) as { answerKey: string[] }
+  t.mock.method(globalThis, 'fetch', async () => new Response(bytes))
+  const { submitRewardedCetPaperStudy } = await import('../src/core/cetPapers.ts')
+  const study = paperStudy({ id: 'cet-paper-after-backup', sourceId: rewardPaper.sourceId,
+    paperRevision: rewardPaper.revision, answers: paperAnswers(paper.answerKey[0]), answerKey: paper.answerKey,
+    firstSubmission: undefined, latestSubmission: undefined })
+  const question = rewardQuestion({ number: 1, first: 'correct', lastSubmittedAt: 100, paid: { firstCorrect: 100 } })
+  const fixture = databaseFixture(t, { cetPapers: [study] })
+  const payload = { data: { reviewLogs: [], profile: [{ ...defaultProfile(), xp: 6, coins: 3,
+    cetRewardProgress: { [rewardKey(question)]: question } }] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  const result = await submitRewardedCetPaperStudy(study.id)
+  assert.equal(result.rewards.xp, 0)
+  assert.equal(result.rewards.coins, 0)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.xp, 6)
+  assert.equal(fixture.get<Profile>('profile', 'me')?.coins, 3)
+  assert.deepEqual(fixture.get<Profile>('profile', 'me')?.cetRewardProgress?.[rewardKey(question)].paid, { firstCorrect: 100 })
+})
+
 test('backup: export/import on a clean device restores settings, inventory, quests and legacy stats', async (t) => {
   const now = Date.now()
   const legacyWord: Word = { ...word, id: 'legacy', word: 'legacy' }
@@ -156,7 +295,7 @@ test('backup: export/import on a clean device restores settings, inventory, ques
     cetPractice: [cetReading(), cetOutput()],
   })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 7)
+  assert.equal(exported.schemaVersion, 8)
   const localWord = { ...word, definition: '本地修订释义', bookId: 'cet4-core', unitId: 1, bookUnits: undefined }
   fixture.reset({
     words: [localWord],
@@ -536,7 +675,7 @@ test('backup: real-paper cards, independent submissions and local documents surv
   const study = paperStudy({ files: { paper: ref } })
   const fixture = databaseFixture(t, { cetPapers: [study], media: [{ id: ref.id, blob: paperPdf }] })
   const exported = await exportBackup()
-  assert.equal(exported.schemaVersion, 7)
+  assert.equal(exported.schemaVersion, 8)
   assert.deepEqual(exported.data.cetPapers, [study])
   assert.equal(exported.data.media[0].type, 'application/pdf')
   fixture.reset({})
@@ -549,6 +688,61 @@ test('backup: real-paper cards, independent submissions and local documents surv
   assert.equal(fixture.get<Profile>('profile', 'me')?.xp, 0)
   assert.equal(fixture.get<Profile>('profile', 'me')?.coins, 0)
   assert.equal(fixture.get<DailyQuest>('quests', todayKey()), undefined)
+})
+
+test('backup: correction evidence round trips and merges each question independently of newer paper drafts', async (t) => {
+  const local = paperStudy({ sourceId: rewardPaper.sourceId, paperRevision: rewardPaper.revision,
+    updatedAt: 900, writingDraft: 'the newer local draft', correctionEvidence: {
+      '1': { text: 'Local first evidence', previousSubmittedAt: 100, recordedAt: 200 },
+      '46': { text: 'Local evidence stays', previousSubmittedAt: 100, recordedAt: 300 },
+    } })
+  const incoming = paperStudy({ sourceId: rewardPaper.sourceId, paperRevision: rewardPaper.revision,
+    updatedAt: 700, writingDraft: 'the older remote draft', correctionEvidence: {
+      '1': { text: 'Newer remote first evidence', previousSubmittedAt: 300, recordedAt: 600 },
+      '55': { text: 'Remote evidence is added', previousSubmittedAt: 100, recordedAt: 500 },
+    } })
+  const fixture = databaseFixture(t, { cetPapers: [local] })
+  const exported = await exportBackup()
+  fixture.reset({})
+  assert.equal((await importBackup(backupFile(exported))).ok, true)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paperId), local)
+  const payload = { data: { reviewLogs: [], cetPapers: [incoming] } }
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  const merged = fixture.get<CetPaperStudy>('cetPapers', paperId)!
+  assert.equal(merged.writingDraft, local.writingDraft)
+  assert.deepEqual(merged.correctionEvidence, {
+    '1': incoming.correctionEvidence!['1'], '46': local.correctionEvidence!['46'],
+    '55': incoming.correctionEvidence!['55'],
+  })
+  const beforeRepeat = fixture.snapshot()
+  assert.equal((await importBackup(backupFile(payload))).ok, true)
+  assert.deepEqual(fixture.snapshot(), beforeRepeat)
+  assert.equal((await importBackup(backupFile({ schemaVersion: 7, data: { reviewLogs: [],
+    cetPapers: [paperStudy({ sourceId: rewardPaper.sourceId, paperRevision: rewardPaper.revision, updatedAt: 1000 })],
+  } }))).ok, true)
+  assert.deepEqual(fixture.get<CetPaperStudy>('cetPapers', paperId)?.correctionEvidence, merged.correctionEvidence)
+})
+
+test('backup: malformed correction evidence rejects the entire import before any write', async (t) => {
+  const valid = { text: 'The sentence gives this answer.', previousSubmittedAt: 100, recordedAt: 200 }
+  const fixture = databaseFixture(t, { cetPapers: [paperStudy()] })
+  const before = fixture.snapshot()
+  const invalid: unknown[] = [null, [], { '0': valid }, { '56': valid }, { '01': valid },
+    { '1': null }, { '1': { ...valid, text: '' } }, { '1': { ...valid, text: '   ' } },
+    { '1': { ...valid, text: 'x'.repeat(10001) } },
+    { '1': { ...valid, previousSubmittedAt: 9 } }, { '1': { ...valid, recordedAt: 301 } },
+    { '1': { ...valid, recordedAt: 100 } }, { '1': { ...valid, recordedAt: 200.5 } },
+  ]
+  for (const correctionEvidence of invalid) {
+    const study = { ...paperStudy({ sourceId: rewardPaper.sourceId, paperRevision: rewardPaper.revision }), correctionEvidence }
+    const result = await importBackup(backupFile({ data: { reviewLogs: [], words: [word], cetPapers: [study] } }))
+    assert.equal(result.ok, false, JSON.stringify(correctionEvidence))
+    assert.match(result.error!, /真题/)
+    assert.deepEqual(fixture.snapshot(), before)
+  }
+  const unpinned = { ...paperStudy(), correctionEvidence: { '1': valid } }
+  assert.equal((await importBackup(backupFile({ data: { reviewLogs: [], cetPapers: [unpinned] } }))).ok, false)
+  assert.deepEqual(fixture.snapshot(), before)
 })
 
 test('backup: paper drafts, earliest first and latest submissions merge independently while stale files stay unreferenced', async (t) => {

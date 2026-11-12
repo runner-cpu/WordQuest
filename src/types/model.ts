@@ -90,6 +90,22 @@ export interface MascotState {
   skin: string
 }
 
+export type CetRewardKind = 'firstCorrect' | 'correction' | 'evidence'
+
+/** 同一来源、版本、题号的全局奖励凭据；0 表示旧历史已消费且未补发。 */
+export interface CetRewardQuestionProgress {
+  sourceId: string
+  paperRevision: string
+  number: number
+  first: 'correct' | 'wrong'
+  firstSubmittedAt: number
+  last: 'correct' | 'wrong'
+  lastSubmittedAt: number
+  paid: Partial<Record<CetRewardKind, number>>
+}
+
+export type CetRewardProgress = Record<string, CetRewardQuestionProgress>
+
 export interface Profile {
   id: 'me'
   level: number
@@ -126,6 +142,8 @@ export interface Profile {
   styleId?: string
   /** 自定义主题的色相（0-359），仅 theme === 'custom' 时生效 */
   customHue?: number
+  /** 站内真题的首次作答状态和一次性领奖凭据，跨学习档案共享。 */
+  cetRewardProgress?: CetRewardProgress
 }
 
 export interface AchievementUnlock {

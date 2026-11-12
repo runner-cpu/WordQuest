@@ -41,6 +41,10 @@
 .cet-question-analysis summary { cursor: pointer; min-height: 44px; color: var(--wq-gold); }
 .cet-question-analysis .pixel-btn { white-space: normal; }
 .cet-evidence-notice { padding: 8px 16px; border-bottom: 1px solid var(--wq-edge); }
+.cet-correction-note textarea { display: block; width: 100%; min-width: 0; margin-block: 8px; font-size: 16px; }
+.cet-reward-breakdown { margin-block: 16px 24px; padding-block: 16px; border-block: 1px solid var(--wq-edge); }
+.cet-reward-breakdown h4 { font-weight: 650; margin-bottom: 8px; }
+.cet-evidence-conflict { padding: 16px; border-bottom: 1px solid var(--wq-gold); overflow-wrap: anywhere; }
 .cet-ready-split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); min-height: 0; height: 100%; }
 .cet-ready-material, .cet-ready-questions { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 22px 24px 28px; }
 .cet-ready-material { border-right: 1px solid var(--wq-edge); background: var(--wq-panel-2); }

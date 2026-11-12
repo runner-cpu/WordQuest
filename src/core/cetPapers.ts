@@ -1,6 +1,10 @@
 import { CET_PAPER_SOURCES } from '../data/cetPaperSources'
 import { db } from '../db/database'
 import type { CetPaperFileKind, CetPaperFileRef, CetPaperScope, CetPaperStudy, CetPaperSubmission } from '../types/cetPaper'
+import type { CetRewardProgress, CetRewardQuestionProgress } from '../types/model'
+import { CET_READY_PAPERS, loadReadyCetPaper } from './cetReadyPapers'
+import { addCetPaperReward, cetRewardQuestionKey, emptyCetPaperRewards, mergeCetRewardProgress, type CetPaperRewards } from './cetRewards'
+import { bumpDaily, ensureProfile, patchProfile } from './profile'
 
 const QUESTION_COUNT = 55
 export function cetPaperQuestionNumbers(scope: CetPaperScope = 'all'): number[] {
@@ -118,6 +122,13 @@ export function isCetPaperStudy(value: unknown): value is CetPaperStudy {
     !timestamp(value.elapsedSeconds) || !record(value.files) ||
     Object.keys(value.files).some((kind) => !FILE_KINDS.includes(kind as CetPaperFileKind) ||
       !validFileRef((value.files as Record<string, unknown>)[kind], value.id as string, kind as CetPaperFileKind))) return false
+  if (value.correctionEvidence !== undefined) {
+    if (!value.paperRevision || !record(value.correctionEvidence) || !Object.entries(value.correctionEvidence).every(([number, evidence]) =>
+      /^(?:[1-9]|[1-4][0-9]|5[0-5])$/.test(number) && record(evidence) &&
+      typeof evidence.text === 'string' && Boolean(evidence.text.trim()) && evidence.text.length <= 10_000 &&
+      timestamp(evidence.previousSubmittedAt) && timestamp(evidence.recordedAt) &&
+      (value.createdAt as number) <= evidence.previousSubmittedAt && evidence.previousSubmittedAt < evidence.recordedAt && evidence.recordedAt <= (value.updatedAt as number))) return false
+  }
   if (!validPair(value.firstSubmission, value.latestSubmission, value.createdAt, value.updatedAt)) return false
   if (value.sectionSubmissions === undefined) return true
   if (!record(value.sectionSubmissions)) return false
@@ -231,27 +242,146 @@ export async function submitCetPaperStudy(id: string, scope: CetPaperScope = 'al
   if (!['all', 'listening', 'reading'].includes(scope)) throw new Error('练习范围无效')
   return db.transaction('rw', [db.cetPapers], async () => {
     const previous = await requireStudy(id)
-    const indexes = new Set(cetPaperQuestionNumbers(scope).map((number) => number - 1))
-    if (!previous.answers.some((answer, index) => indexes.has(index) && answer !== '' && previous.answerKey[index] !== '')) {
-      throw new Error('请至少选择一道题的答案，并录入该题的参考答案后核对')
-    }
-    const submittedAt = nextTimestamp(previous.updatedAt)
-    const mask = (values: string[]) => values.map((value, index) => indexes.has(index) ? value : '')
-    const submission: CetPaperSubmission = { answers: mask(previous.answers), answerKey: mask(previous.answerKey), submittedAt }
-    const study: CetPaperStudy = { ...previous, updatedAt: submittedAt }
-    if (scope === 'all') {
-      study.firstSubmission = cloneSubmission(previous.firstSubmission ?? submission)
-      study.latestSubmission = cloneSubmission(submission)
-    } else {
-      const legacyFirst = previous.firstSubmission
-      const inherited = legacyFirst && indexes.size && legacyFirst.answers.some((answer, index) => indexes.has(index) && answer && legacyFirst.answerKey[index])
-        ? { answers: mask(legacyFirst.answers), answerKey: mask(legacyFirst.answerKey), submittedAt: legacyFirst.submittedAt } : undefined
-      study.sectionSubmissions = { ...previous.sectionSubmissions, [scope]: {
-        first: cloneSubmission(previous.sectionSubmissions?.[scope]?.first ?? inherited ?? submission), latest: cloneSubmission(submission),
-      } }
-    }
+    const study = submittedStudy(previous, scope)
     await db.cetPapers.put(study)
     return structuredClone(study)
+  })
+}
+
+function submittedStudy(previous: CetPaperStudy, scope: CetPaperScope, after = previous.updatedAt): CetPaperStudy {
+  const indexes = new Set(cetPaperQuestionNumbers(scope).map(number => number - 1))
+  if (!previous.answers.some((answer, index) => indexes.has(index) && answer !== '' && previous.answerKey[index] !== '')) {
+    throw new Error('请至少选择一道题的答案，并录入该题的参考答案后核对')
+  }
+  const submittedAt = nextTimestamp(Math.max(previous.updatedAt, after))
+  const mask = (values: string[]) => values.map((value, index) => indexes.has(index) ? value : '')
+  const submission: CetPaperSubmission = { answers: mask(previous.answers), answerKey: mask(previous.answerKey), submittedAt }
+  const study: CetPaperStudy = { ...previous, updatedAt: submittedAt }
+  if (scope === 'all') {
+    study.firstSubmission = cloneSubmission(previous.firstSubmission ?? submission)
+    study.latestSubmission = cloneSubmission(submission)
+  } else {
+    const legacyFirst = previous.firstSubmission
+    const inherited = legacyFirst && legacyFirst.answers.some((answer, index) => indexes.has(index) && answer && legacyFirst.answerKey[index])
+      ? { answers: mask(legacyFirst.answers), answerKey: mask(legacyFirst.answerKey), submittedAt: legacyFirst.submittedAt } : undefined
+    study.sectionSubmissions = { ...previous.sectionSubmissions, [scope]: {
+      first: cloneSubmission(previous.sectionSubmissions?.[scope]?.first ?? inherited ?? submission), latest: cloneSubmission(submission),
+    } }
+  }
+  return study
+}
+
+function allSubmissions(study: CetPaperStudy): CetPaperSubmission[] {
+  return [study.firstSubmission, study.latestSubmission,
+    study.sectionSubmissions?.listening?.first, study.sectionSubmissions?.listening?.latest,
+    study.sectionSubmissions?.reading?.first, study.sectionSubmissions?.reading?.latest]
+    .filter((submission): submission is CetPaperSubmission => submission !== undefined)
+}
+
+function latestQuestionSubmission(study: CetPaperStudy, number: number): CetPaperSubmission | undefined {
+  return allSubmissions(study).filter(submission => submission.answers[number - 1] && submission.answerKey[number - 1])
+    .reduce<CetPaperSubmission | undefined>((latest, submission) => !latest || submission.submittedAt > latest.submittedAt ? submission : latest, undefined)
+}
+
+/** 显式登记单题依据。公共 notes 与草稿保持独立，双标签更新可用 expectedText 检查冲突。 */
+export async function recordCetCorrectionEvidence(id: string, number: number, text: string, expectedText?: string): Promise<CetPaperStudy> {
+  if (!Number.isInteger(number) || number < 1 || number > QUESTION_COUNT || typeof text !== 'string' || !text.trim() || text.length > 10_000 ||
+    (expectedText !== undefined && typeof expectedText !== 'string')) throw new Error('请填写有效题号和本题订正依据')
+  return db.transaction('rw', [db.cetPapers], async () => {
+    const previous = await requireStudy(id)
+    const latest = latestQuestionSubmission(previous, number)
+    if (!previous.paperRevision || !latest || latest.answers[number - 1] === latest.answerKey[number - 1]) throw new Error('请先核对这道题的错误答案，再保存订正依据')
+    if (expectedText !== undefined && (previous.correctionEvidence?.[number]?.text ?? '') !== expectedText) throw new CetDraftConflict(previous)
+    const recordedAt = nextTimestamp(previous.updatedAt)
+    const study: CetPaperStudy = { ...previous, updatedAt: recordedAt, correctionEvidence: { ...previous.correctionEvidence,
+      [number]: { text: text.trim(), recordedAt, previousSubmittedAt: latest.submittedAt },
+    } }
+    await db.cetPapers.put(study)
+    return structuredClone(study)
+  })
+}
+
+/** 用已有核对记录建立不补奖的基线，也覆盖奖励功能启用前的其他同卷档案。 */
+function legacyRewardBaseline(studies: CetPaperStudy[], sourceId: string, paperRevision: string, answerKey: string[], recorded: CetRewardProgress = {}): CetRewardProgress {
+  const baseline: CetRewardProgress = {}
+  const submissions = studies.filter(study => study.sourceId === sourceId && study.paperRevision === paperRevision && isCetPaperStudy(study))
+    .flatMap(allSubmissions).sort((a, b) => a.submittedAt - b.submittedAt)
+  for (const submission of submissions) {
+    submission.answers.forEach((answer, index) => {
+      if (!answer || !submission.answerKey[index]) return
+      const key = cetRewardQuestionKey(sourceId, paperRevision, index + 1)
+      const state = answer === answerKey[index] ? 'correct' : 'wrong'
+      const prior = baseline[key]
+      const row: CetRewardQuestionProgress = prior ?? { sourceId, paperRevision, number: index + 1,
+        first: state, firstSubmittedAt: submission.submittedAt, last: state, lastSubmittedAt: submission.submittedAt, paid: {} }
+      row.last = state
+      row.lastSubmittedAt = submission.submittedAt
+      if (row.first === 'correct') row.paid.firstCorrect = 0
+      else if (state === 'correct') { row.paid.correction = 0; row.paid.evidence = 0 }
+      baseline[key] = row
+    })
+  }
+  for (const [key, row] of Object.entries(baseline)) {
+    const prior = recorded[key]
+    // 已在奖励事务中登记过的历史无需再消费尚未满足条件的奖励 kind。
+    if (prior && prior.firstSubmittedAt <= row.firstSubmittedAt && prior.lastSubmittedAt >= row.lastSubmittedAt) row.paid = {}
+  }
+  return baseline
+}
+
+/** 只为通过内容散列校验的当前站内版本结算；三处写入共享事务，任何一步失败都会回滚。 */
+export async function submitRewardedCetPaperStudy(id: string, scope: CetPaperScope = 'all'): Promise<{ study: CetPaperStudy; rewards: CetPaperRewards }> {
+  if (!['all', 'listening', 'reading'].includes(scope)) throw new Error('练习范围无效')
+  const initial = await requireStudy(id)
+  const entry = CET_READY_PAPERS.find(candidate => candidate.sourceId === initial.sourceId && candidate.revision === initial.paperRevision)
+  if (!entry) throw new Error('只有当前站内真题版本可以结算学习奖励')
+  // 网络、解析和散列运算全部在事务外完成，避免 IndexedDB 事务跨异步网络等待失效。
+  const paper = await loadReadyCetPaper(initial.sourceId)
+  const canonicalKey = [...paper.answerKey]
+  const verify = (study: CetPaperStudy) => {
+    if (study.sourceId !== initial.sourceId || study.paperRevision !== entry.revision ||
+      !study.answerKey.every((answer, index) => answer === canonicalKey[index])) throw new Error('题目版本或参考答案已更改，请重新打开站内真题后核对')
+  }
+  verify(initial)
+  return db.transaction('rw', [db.cetPapers, db.profile, db.dailyLogs], async () => {
+    const previous = await requireStudy(id)
+    verify(previous)
+    const profile = await ensureProfile()
+    const baseline = legacyRewardBaseline(await db.cetPapers.toArray(), initial.sourceId, entry.revision, canonicalKey, profile.cetRewardProgress)
+    const progress = mergeCetRewardProgress(profile.cetRewardProgress, baseline)
+    const latestGlobalAt = Object.values(progress).reduce((latest, row) =>
+      row.sourceId === initial.sourceId && row.paperRevision === entry.revision ? Math.max(latest, row.lastSubmittedAt) : latest, previous.updatedAt)
+    const study = submittedStudy(previous, scope, latestGlobalAt)
+    const rewards = emptyCetPaperRewards()
+    for (const number of cetPaperQuestionNumbers(scope)) {
+      const answer = previous.answers[number - 1]
+      if (!answer) continue
+      const correct = answer === canonicalKey[number - 1]
+      const key = cetRewardQuestionKey(initial.sourceId, entry.revision, number)
+      const prior = progress[key]
+      const row: CetRewardQuestionProgress = prior ?? { sourceId: initial.sourceId, paperRevision: entry.revision, number,
+        first: correct ? 'correct' : 'wrong', firstSubmittedAt: study.updatedAt,
+        last: correct ? 'correct' : 'wrong', lastSubmittedAt: study.updatedAt, paid: {} }
+      const pay = (kind: 'firstCorrect' | 'correction' | 'evidence') => {
+        if (row.paid[kind] !== undefined) return
+        row.paid[kind] = study.updatedAt
+        addCetPaperReward(rewards, kind)
+      }
+      if (!prior && correct) pay('firstCorrect')
+      if (prior && prior.first === 'wrong' && correct) {
+        pay('correction')
+        const evidence = previous.correctionEvidence?.[number]
+        if (prior.last === 'wrong' && evidence?.text.trim() && evidence.previousSubmittedAt === prior.lastSubmittedAt &&
+          evidence.recordedAt > prior.lastSubmittedAt && evidence.recordedAt < study.updatedAt) pay('evidence')
+      }
+      row.last = correct ? 'correct' : 'wrong'
+      row.lastSubmittedAt = study.updatedAt
+      progress[key] = row
+    }
+    await db.cetPapers.put(study)
+    await bumpDaily({ xp: rewards.xp, coinsEarned: rewards.coins })
+    await patchProfile({ xp: profile.xp + rewards.xp, coins: profile.coins + rewards.coins, cetRewardProgress: progress })
+    return { study: structuredClone(study), rewards }
   })
 }
 
@@ -322,6 +452,13 @@ export function mergeCetPaperStudies(local: CetPaperStudy | undefined, incoming:
     files: { ...older?.files, ...newer.files },
   })
   if (first && latest) { study.firstSubmission = cloneSubmission(first); study.latestSubmission = cloneSubmission(latest) }
+  const evidence = { ...local?.correctionEvidence }
+  for (const [number, incomingEvidence] of Object.entries(incoming.correctionEvidence ?? {})) {
+    const current = evidence[number]
+    if (!current || incomingEvidence.recordedAt > current.recordedAt ||
+      (incomingEvidence.recordedAt === current.recordedAt && incomingEvidence.text < current.text)) evidence[number] = incomingEvidence
+  }
+  if (Object.keys(evidence).length) study.correctionEvidence = structuredClone(evidence)
   for (const scope of ['listening', 'reading'] as const) {
     const pairs = [local?.sectionSubmissions?.[scope], incoming.sectionSubmissions?.[scope]].filter((pair) => pair !== undefined)
     if (!pairs.length) continue

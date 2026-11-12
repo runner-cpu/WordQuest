@@ -1,4 +1,4 @@
-import type { ReviewLog } from '../types/model'
+import type { Profile, ReviewLog } from '../types/model'
 import { todayKey } from '../db/database'
 
 export type AchievementCategory = '坚持' | '词汇' | '复习' | '拼写' | '听力' | '运用'
@@ -29,6 +29,8 @@ export interface AchievementCtx {
   expressionIndependent: number
   expressionRetained: number
   learningDimensions: number
+  cetCorrections: number
+  cetEvidenceNotes: number
 }
 
 export interface AchievementDef {
@@ -124,7 +126,18 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   milestone('expression-6', '六句随身带', '6 个不同短语在首次或到期练习中不看提示独立写出', '运用', 'expressionIndependent', 6, '表达'),
   milestone('expression-18', '表达行囊', '全部 18 个短语都曾在首次或到期练习中不看提示独立写出', '运用', 'expressionIndependent', 18, '表达'),
   milestone('expression-recall-3', '隔日仍记得', '3 个不同短语各自在至少 2 个不同日期的首次或到期练习中独立想起', '运用', 'expressionRetained', 3, '表达'),
+  milestone('cet-correction-1', '订正第一步', '在本机真题练习中完成第 1 道错题订正；记录学习行动，不代表能力认证', '运用', 'cetCorrections', 1, '题'),
+  milestone('cet-evidence-1', '找到原文依据', '在本机真题练习中为第 1 道题记录有效原文证据；记录学习行动，不代表能力认证', '运用', 'cetEvidenceNotes', 1, '题'),
 ]
+
+/** 每题的已发奖励凭据代表一次学习行动；旧历史的零值占位不作为新成果。 */
+export function summarizeCetRewardProgress(progress: Profile['cetRewardProgress']) {
+  const rows = Object.values(progress ?? {})
+  return {
+    cetCorrections: rows.filter((row) => (row.paid.correction ?? 0) > 0).length,
+    cetEvidenceNotes: rows.filter((row) => (row.paid.evidence ?? 0) > 0).length,
+  }
+}
 
 export function achievementProgress(achievement: AchievementDef, ctx: AchievementCtx) {
   const [current, target] = achievement.progress(ctx)

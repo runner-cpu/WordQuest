@@ -10,6 +10,7 @@ const empty: AchievementCtx = {
   recoveredWords: 0, relearnedWords: 0, spellingCorrect: 0, spellingWords: 0,
   listeningSpellCorrect: 0, spellingStreak: 0, adventureCompleted: 0,
   adventurePerfect: 0, expressionIndependent: 0, expressionRetained: 0, learningDimensions: 0,
+  cetCorrections: 0, cetEvidenceNotes: 0,
 }
 const byId = (id: string) => ACHIEVEMENTS.find((achievement) => achievement.id === id)!
 const log = (id: string, wordId: string, day: number, correct: boolean, mode: ReviewLog['mode'] = 'spell'): ReviewLog => ({
@@ -17,16 +18,23 @@ const log = (id: string, wordId: string, day: number, correct: boolean, mode: Re
   rating: correct ? 3 : 1, elapsedMs: 3000, deviceId: 'test',
 })
 
-test('68 枚成就保留旧 ID，每枚均有准确说明、进度和正向学习条件', () => {
-  assert.equal(ACHIEVEMENTS.length, 68)
-  assert.equal(new Set(ACHIEVEMENTS.map((achievement) => achievement.id)).size, 68)
+test('70 枚成就保留全部 68 个旧 ID，每枚均有准确说明、进度和正向学习条件', () => {
+  assert.equal(ACHIEVEMENTS.length, 70)
+  assert.equal(new Set(ACHIEVEMENTS.map((achievement) => achievement.id)).size, 70)
   const oldIds = [
     'streak-1', 'streak-7', 'streak-14', 'streak-30', 'streak-60', 'streak-100', 'streak-180', 'streak-365',
     'word-1', 'word-50', 'word-100', 'word-300', 'word-500', 'word-1000', 'word-2000', 'word-3000', 'cet4-90', 'learn-500',
     'listen-1', 'listen-20', 'listen-50', 'listen-100', 'listen-300', 'listen-perfect-20', 'listen-speed', 'listen-marathon',
     'combo-10', 'combo-25', 'combo-perfect', 'combo-steady', 'combo-night', 'combo-50',
     'fail-day', 'fail-triple', 'fail-hard20', 'hide-early', 'hide-nearmiss', 'hide-collector', 'hide-broke', 'hide-marathon',
+    'review-1', 'review-50', 'review-200', 'review-500', 'review-1000', 'recover-5', 'recover-10',
+    'spell-1', 'spell-25', 'spell-100', 'spell-300', 'listen-spell-25', 'spell-words-50',
+    'study-days-3', 'study-days-14', 'study-days-60', 'study-days-180',
+    'adventure-1', 'adventure-3', 'adventure-6', 'adventure-9',
+    'adventure-perfect-1', 'adventure-perfect-3', 'adventure-perfect-9',
+    'expression-1', 'expression-6', 'expression-18', 'expression-recall-3',
   ]
+  assert.equal(oldIds.length, 68, 'the complete existing catalog remains stable')
   assert.ok(oldIds.every((id) => byId(id)))
   for (const achievement of ACHIEVEMENTS) {
     const progress = achievementProgress(achievement, empty)

@@ -5,7 +5,7 @@ import { bumpDaily, ensureProfile, patchProfile } from './profile'
 import { wordInBooks } from './wordMembership'
 import { BOOKS } from './wordbook'
 import { ADVENTURE_SCENE_IDS } from '../data/adventureIds'
-import { ACHIEVEMENTS, createAchievementLogAccumulator, type AchievementCtx, type AchievementDef, type AchievementLogFacts } from './achievements'
+import { ACHIEVEMENTS, createAchievementLogAccumulator, summarizeCetRewardProgress, type AchievementCtx, type AchievementDef, type AchievementLogFacts } from './achievements'
 import type { DailyQuest, ReviewLog } from '../types/model'
 
 export { ACHIEVEMENTS, achievementProgress } from './achievements'
@@ -117,6 +117,7 @@ export async function buildAchievementCtx(): Promise<AchievementCtx> {
     listeningSeconds: daily.reduce((total, day) => total + day.listeningSeconds, 0),
     totalAnswered: daily.reduce((total, day) => total + day.totalAnswered, 0),
     adventureCompleted, adventurePerfect, expressionIndependent, expressionRetained, ...facts,
+    ...summarizeCetRewardProgress(profile.cetRewardProgress),
     learningDimensions: [learned > 0, reviewsDone > 0, facts.spellingCorrect > 0, listeningSentences > 0, adventureCompleted > 0 || expressions.length > 0].filter(Boolean).length,
   }
 }

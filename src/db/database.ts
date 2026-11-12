@@ -68,12 +68,19 @@ export class WordQuestDB extends Dexie {
     this.version(7).stores({
       cetPapers: 'id, sourceId, updatedAt',
     })
+    // v8：奖励凭据保留在账户中，增量补默认值，不重建表或清理学习记录。
+    this.version(8).stores({}).upgrade(async (transaction) => {
+      await transaction.table<Profile>('profile').toCollection().modify((profile) => {
+        profile.cetRewardProgress ??= {}
+        profile.schemaVersion = 8
+      })
+    })
   }
 }
 
 export const db = new WordQuestDB()
 
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 export function todayKey(d = new Date()): string {
   const y = d.getFullYear()

@@ -15,6 +15,14 @@ export function expressionDate(time: number) {
   return new Date(time).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
+export function ExpressionRewardNotice({ result }: { result?: SavedAttempt } = {}) {
+  if (!result) return <p className="readable mt-3 text-px12 text-dim">首次或到期练习中不看提示独立答对：+3 XP、+1 金币。使用提示、查看参考、未到期或同日重复练习时不发放本次表达奖励，学习进度仍会保存。</p>
+  const reason = !result.scheduled ? '本次是自由练习，不重复发放奖励。'
+    : !result.independent ? result.correct ? '本次借助提示或参考完成，下次可再试着独立回想。' : '本次还在熟悉表达，下次可再试着独立回想。'
+      : result.xp === 0 ? '本次表达奖励已领取，不重复发放。' : '独立回想的收获已入账。'
+  return <p className={`readable mt-2 text-px12 ${result.xp > 0 ? 'text-pass' : 'text-dim'}`}>本次表达奖励：{result.xp} XP · {result.coins} 金币。{reason}学习进度已保存。</p>
+}
+
 /** A short, protected-focus writing session; each submitted phrase is saved before advancing. */
 export function ExpressionPractice({ ids, onClose }: { ids: string[]; onClose: () => void }) {
   const [exercises] = useState(() => ids.map((id) => ADVENTURE_EXPRESSIONS.find((item) => item.id === id)).filter((item): item is AdventureExpression => Boolean(item)))
@@ -136,6 +144,7 @@ export function ExpressionPractice({ ids, onClose }: { ids: string[]; onClose: (
         </> : <>
           <h2 id="expression-title" ref={heading} tabIndex={-1} className="text-px24 text-bright">换个情境，你会怎么说？</h2>
           <p className="readable mt-2 text-dim">来自「{scene?.title}」的表达 · {scene?.level}</p>
+          {!saved && <ExpressionRewardNotice />}
           <div className="my-5"><PixelBar value={index} max={exercises.length} label="本轮表达练习进度" color="var(--wq-pass)" /></div>
           <p id="expression-prompt" className="expression-prompt readable text-bright">{exercise.prompt}</p>
           <p id="expression-sentence" className="expression-sentence readable" lang="en">{exercise.before}<span className="expression-gap" aria-label="填写短语的位置">{saved ? filledAnswer : '…'}</span>{exercise.after}</p>
@@ -151,7 +160,8 @@ export function ExpressionPractice({ ids, onClose }: { ids: string[]; onClose: (
             <p className="expression-reference mt-3 text-bright"><span className="text-px12 text-dim">参考说法：</span><span lang="en">{exercise.referenceAnswer}</span></p>
             <p className="mt-2 text-dim">{exercise.explanation}</p>
             {exercise.acceptedAnswers.length > 1 && <details className="adventure-reference mt-2"><summary className="text-px12 text-dim">本题也接受这些说法</summary><p lang="en">{exercise.acceptedAnswers.join(' / ')}</p></details>}
-            <p className="mt-3 text-px12 text-pass">已保存 · {expressionDate(saved.progress.dueAt)} 再回想{saved.xp > 0 ? ` · +${saved.xp} XP · +${saved.coins} 金币` : ''}</p>
+            <p className="mt-3 text-px12 text-pass">已保存 · {expressionDate(saved.progress.dueAt)} 再回想</p>
+            <ExpressionRewardNotice result={saved} />
             {!saved.scheduled && <p className="mt-2 text-px12 text-dim">这是一次自由练习；下次回想时间保持原来的安排。</p>}
           </div>}
         </>}

@@ -33,3 +33,32 @@
 
 ### 对现有基线的影响
 145 项原单测与 6 项原浏览器流程全部保留并通过。无新增依赖、无数据清空、无原始素材修改。审查发现并修复了未答题答案提前展开及选词解析列宽问题。
+
+## 批次 B 完成报告
+
+### 改动摘要
+- 当前站内版本首次正确每题 2 XP/1 金币，首次订正正确 3 XP/1 金币，本轮有新增单题依据的订正另加 1 XP/1 金币；结算分三行显示。
+- 每题首次状态和各奖励种类凭据按来源、版本、题号保存；跨档案、分区交叉核对、刷新、重复提交和双标签共用凭据。
+- 单题依据记录自己的保存时刻及所基于的错误提交；旧公共笔记不自动获得证据加成。证据可从解析追加，也可手写；双页冲突保留两份并明确选择。
+- 新增两项真题订正成就，保留原 68 个 ID。成就说明依据本机学习行为，不是能力认证。表达维持独立 3 XP/1 金币、辅助及同日重复 0，并补清晰说明。
+
+### 文件清单
+- 新增：`src/core/cetRewards.ts`、`test/cetRewards.test.ts`、`test/cetRewardProgress.test.ts`、`e2e/batch-b.spec.ts`。
+- 修改：`src/types/model.ts`、`src/types/cetPaper.ts`、`src/db/database.ts`、`src/core/cetPapers.ts`、`src/core/backup.ts`、`src/core/progress.ts`、`src/core/achievements.ts`。
+- 界面：`src/features/CetReadyWorkspace.tsx`、`src/features/CetQuestionAnalysis.tsx`、`src/features/cetReadyWorkspace.css`、`src/features/ExpressionPractice.tsx`。
+- 回归测试：`test/backup.test.ts`、`test/achievements.test.ts`、`test/cetPapers.test.ts`、`test/cetPractice.test.ts`。
+
+### 数据结构与迁移
+数据库增量升级至 schema 8，保留 1–7 版本。Profile 增加可选 `cetRewardProgress`，真题档案增加可选 `correctionEvidence`；旧档案建立无补奖基线。凭据与余额、每日经验在同一事务更新；导入以凭据并集合并、余额取既有最大值策略，不补发奖励。旧备份缺新字段不会清空本地记录。
+
+### 测试
+- 新增 22 项单元测试，总计 **176/176** 通过；覆盖完整回滚、并发、跨档案、修改答案键、部分答题、旧笔记隔离与重复备份。
+- 新增 3 项浏览器流程，总计 **12/12** 通过：三类奖励及刷新去重、双标签共用一次凭据、订正依据冲突恢复。
+- `npm run typecheck`、`npm run build` 通过。
+- 原 schema 数字断言从 7 更新为真实版本 8，成就总数断言更新为 70，同时新增原 68 个 ID 全部保留的证明，未删除原行为断言。
+
+### 已知边界与 TODO
+奖励表示记录到的本机学习行为，不验证手写依据的质量。词汇掌握奖励接口预留，尚未提前更改词汇规则，按批次 D 统一处理。未新增断签惩罚。
+
+### 对现有基线的影响
+原单测与 6 项原浏览器流程继续通过。自带资料的原提交 API 保持原有不发奖励行为；奖励入口只接受通过版本及内容散列验证的站内卷。

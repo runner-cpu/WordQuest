@@ -8,6 +8,7 @@ import { wordBookUnits } from './wordMembership'
 import { ADVENTURE_SCENE_IDS } from '../data/adventureIds'
 import { isCetPracticeRecord, mergeCetPracticeRecords } from './cetPractice'
 import { isCetPaperStudy, mergeCetPaperStudies, validateCetPaperFile } from './cetPapers'
+import { isCetRewardProgress, mergeCetRewardProgress } from './cetRewards'
 import type { CetPaperFileKind, CetPaperFileRef, CetPaperStudy } from '../types/cetPaper'
 import type { AdventureProgress, CetPracticeRecord, DailyLog, DailyQuest, ExpressionProgress, FsrsSnapshot, Profile, ReviewLog, UserWordStat, Word } from '../types/model'
 
@@ -121,6 +122,10 @@ function profilePatch(local: Profile, remote: Record<string, unknown>, restoreSe
     onboarded: local.onboarded || remote.onboarded === true,
     schemaVersion: Math.max(local.schemaVersion, count(remote.schemaVersion)),
   }
+  // 奖励凭据是不可回退的学习历史，不受是否恢复本机设置影响；旧备份缺字段时保留本地。
+  if (isCetRewardProgress(remote.cetRewardProgress)) {
+    patch.cetRewardProgress = mergeCetRewardProgress(local.cetRewardProgress, remote.cetRewardProgress)
+  }
   if (restoreSettings) {
     patch.theme = remoteTheme ?? local.theme
     patch.mascot = {
@@ -188,6 +193,12 @@ export async function importBackup(file: File): Promise<ImportResult> {
   if (data.cetPractice !== undefined && (!Array.isArray(data.cetPractice) ||
     data.cetPractice.some((row) => !isCetPracticeRecord(row)))) {
     return { ok: false, error: '备份中的四六级专项练习记录格式不正确', ...ZERO }
+  }
+  if (data.profile !== undefined && (!Array.isArray(data.profile) || data.profile.some((row) => {
+    const profile = record(row)
+    return profile && profile.cetRewardProgress !== undefined && !isCetRewardProgress(profile.cetRewardProgress)
+  }))) {
+    return { ok: false, error: '备份中的真题奖励凭据格式不正确', ...ZERO }
   }
   if (data.cetPapers !== undefined && (!Array.isArray(data.cetPapers) ||
     data.cetPapers.some((row) => !isCetPaperStudy(row)) ||

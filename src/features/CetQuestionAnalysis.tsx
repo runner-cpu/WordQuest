@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { CetQuestionAnalysis, CetReadyQuestion } from '../types/cetReadyPaper'
 import { PixelButton } from '../ui/Pixel'
 
@@ -6,9 +7,12 @@ const distractorNames = {
   'not-mentioned': '原文未提及', 'scope-shift': '范围偏移',
 }
 
-export function CetQuestionAnalysisPanel({ question, analysis, disabled, onAppend }: {
-  question: CetReadyQuestion; analysis?: CetQuestionAnalysis; disabled: boolean; onAppend: (analysis: CetQuestionAnalysis) => void
+export function CetQuestionAnalysisPanel({ question, analysis, disabled, onAppend, evidenceText = '', canRecord = false, onSaveEvidence }: {
+  question: CetReadyQuestion; analysis?: CetQuestionAnalysis; disabled: boolean; onAppend: (analysis: CetQuestionAnalysis) => void;
+  evidenceText?: string; canRecord?: boolean; onSaveEvidence?: (text: string, expectedText: string) => void
 }) {
+  const [note, setNote] = useState(evidenceText)
+  useEffect(() => setNote(evidenceText), [evidenceText, question.number])
   return <section className="cet-question-analysis" role="region" aria-label={`第 ${question.number} 题解析`}>
     <h4>第 {question.number} 题 · 证据与错因</h4>
     <p className="text-gold">参考答案：{question.answer} · {question.options.find(option => option.key === question.answer)?.text}</p>
@@ -25,5 +29,11 @@ export function CetQuestionAnalysisPanel({ question, analysis, disabled, onAppen
       {!!analysis.paraphrase?.length && <><h5>关键表达对照</h5><ul>{analysis.paraphrase.map((item, index) => <li key={index} lang="en">{item.original} → {item.alternative}</li>)}</ul><p className="text-dim">用于本题理解的释义，不代表所有语境都可替换。</p></>}
       <details><summary>解析来源与待核验说明</summary><p>{analysis.sourceNote}</p></details>
     </>}
+    {canRecord && onSaveEvidence && <details className="cet-correction-note"><summary>记录自己的订正依据</summary>
+      <label htmlFor={`correction-evidence-${question.number}`}>第 {question.number} 题订正笔记</label>
+      <textarea id={`correction-evidence-${question.number}`} className="pixel-input" rows={3} maxLength={5000} value={note} disabled={disabled} onChange={event => setNote(event.target.value)} placeholder="写下原文或录音依据，以及这次为什么改选…" />
+      <p className="text-dim">保存本题依据后再核对订正。旧公共笔记不自动作为本题证据。</p>
+      <PixelButton disabled={disabled || !note.trim() || note === evidenceText} onClick={() => onSaveEvidence(note, evidenceText)}>保存本题订正依据</PixelButton>
+    </details>}
   </section>
 }
