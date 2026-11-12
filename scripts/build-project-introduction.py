@@ -62,12 +62,12 @@ def build() -> None:
     pdfmetrics.registerFontFamily("Arial", normal="Arial", bold="ArialBold", italic="Arial", boldItalic="ArialBold")
 
     styles = StyleSheet1()
-    styles.add(ParagraphStyle("Body", fontName="YaHei", fontSize=10.8, leading=18.2, textColor=colors.HexColor("#242835"), spaceAfter=9, wordWrap="CJK", alignment=TA_LEFT))
+    styles.add(ParagraphStyle("Body", fontName="YaHei", fontSize=10.5, leading=17.3, textColor=colors.HexColor("#242835"), spaceAfter=8, wordWrap="CJK", alignment=TA_LEFT))
     styles.add(ParagraphStyle("Title", parent=styles["Body"], fontName="YaHeiBold", fontSize=23, leading=32, textColor=colors.black, spaceAfter=13, keepWithNext=True))
-    styles.add(ParagraphStyle("Subtitle", parent=styles["Body"], fontSize=12, leading=20, textColor=colors.HexColor("#555A69"), spaceAfter=17, keepWithNext=True))
-    styles.add(ParagraphStyle("H2", parent=styles["Body"], fontName="YaHeiBold", fontSize=15, leading=23, textColor=colors.HexColor("#343451"), spaceBefore=9, spaceAfter=9, keepWithNext=True))
+    styles.add(ParagraphStyle("Subtitle", parent=styles["Body"], fontSize=12, leading=20, textColor=colors.HexColor("#555A69"), spaceAfter=12, keepWithNext=True))
+    styles.add(ParagraphStyle("H2", parent=styles["Body"], fontName="YaHeiBold", fontSize=15, leading=22, textColor=colors.HexColor("#343451"), spaceBefore=8, spaceAfter=8, keepWithNext=True))
     styles.add(ParagraphStyle("H3", parent=styles["Body"], fontName="YaHeiBold", fontSize=11.8, leading=19, spaceBefore=6, spaceAfter=6, keepWithNext=True))
-    styles.add(ParagraphStyle("List", parent=styles["Body"], leftIndent=13, firstLineIndent=-13, spaceAfter=7))
+    styles.add(ParagraphStyle("List", parent=styles["Body"], leftIndent=13, firstLineIndent=-13, spaceAfter=6))
     styles.add(ParagraphStyle("English", parent=styles["Body"], fontName="Arial", fontSize=10.6, leading=15.1, wordWrap=None, spaceAfter=8))
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ def build() -> None:
         canvas.saveState()
         canvas.setFont("Arial", 8.2)
         canvas.setFillColor(colors.HexColor("#747985"))
-        canvas.drawString(49, 24, "WordQuest  |  Project Introduction  |  2026-10-31")
+        canvas.drawString(49, 24, "WordQuest  |  Project Introduction  |  2026-11-12")
         canvas.drawRightString(letter[0] - 49, 24, str(doc.page))
         canvas.restoreState()
 
