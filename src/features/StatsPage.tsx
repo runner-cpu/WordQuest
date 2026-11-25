@@ -4,6 +4,7 @@ import { EmptyState, Panel, PixelBar, PixelButton, SectionHead } from '../ui/Pix
 import { levelProgress, rankFromPower } from '../core/game'
 import { useUi } from '../state/ui'
 import { reviewForecast } from '../core/learningReport'
+import { effectiveDayStreak, vocabularyFrequencyBands } from '../core/vocabReport'
 import { deriveState, MASTERED_MIN_INTERVAL_DAYS } from '../core/fsrs'
 import { countProductionCorrect, isFamiliar } from '../core/vocabProgress'
 import { useStudyClock } from '../state/useStudyClock'
@@ -57,15 +58,7 @@ export function StatsPage() {
 
     // 词频难度分布：看用户是否总在背低频难词
     const words = await db.words.bulkGet(learned.map(s => s.wordId))
-    const byId = new Map(words.filter(w => w !== undefined).map(w => [w.id, w]))
-    const weightDist = { easy: 0, mid: 0, hard: 0 }
-    for (const s of learned) {
-      const w = byId.get(s.wordId)
-      if (!w) continue
-      if (w.difficultyWeight <= 1.0) weightDist.easy++
-      else if (w.difficultyWeight <= 1.3) weightDist.mid++
-      else weightDist.hard++
-    }
+    const weightDist = vocabularyFrequencyBands(learned.map(s => s.wordId), words, profile?.wordDifficultyWeights)
 
     const answered = logs.reduce((a, l) => a + l.totalAnswered, 0)
     const correct = logs.reduce((a, l) => a + l.correctCount, 0)
@@ -103,12 +96,7 @@ export function StatsPage() {
       .slice(-14)
       .map((l) => ({ date: l.date, acc: l.correctCount / l.totalAnswered }))
 
-    const activeDates = new Set(logs.filter((l) => l.effectiveDay).map((l) => l.date))
-    let streakDays = 0
-    for (let i = 0; i < 400; i++) {
-      if (activeDates.has(dateKeyOffset(-i))) streakDays++
-      else if (i > 0) break
-    }
+    const streakDays = effectiveDayStreak(logs, now)
 
     return {
       mastered: mastered.length,
@@ -128,7 +116,7 @@ export function StatsPage() {
       streakDays,
       hourly,
     }
-  }, [clock, profile?.familiarWords])
+  }, [clock, profile?.familiarWords, profile?.wordDifficultyWeights])
 
   const lp = levelProgress(profile?.xp ?? 0)
   const rank = rankFromPower(profile?.powerPeak ?? 0)
@@ -178,7 +166,7 @@ export function StatsPage() {
       ['掌握词数', String(totals?.mastered ?? 0)],
       ['累计学习', String(totals?.learned ?? 0)],
       ['词汇练习正确率', `${Math.round((totals?.accuracy ?? 0) * 100)}%`],
-      ['连续天数', String(profile?.streak ?? 0)],
+      ['连续有效天数', String(totals?.streakDays ?? 0)],
       ['有效学习日', String(totals?.effectiveDays ?? 0)],
     ]
     ctx.textAlign = 'left'
@@ -212,9 +200,9 @@ export function StatsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `wordquest-learning-report-${new Date().toISOString().slice(0, 10)}.png`
+    a.download = `wordquest-learning-report-${dateKeyOffset(0)}.png`
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   if (!totals || !daily) return <div className="space-y-3 p-3 md:p-5"><LocalDataNotice /><p className="readable text-dim" role="status">正在读取本机学习报告…</p></div>
@@ -321,8 +309,10 @@ export function StatsPage() {
               { label: '高频 (BNC 2k)', value: totals?.weightDist.easy ?? 0, color: 'var(--wq-pass)' },
               { label: '中频 (2k-5k)', value: totals?.weightDist.mid ?? 0, color: 'var(--wq-gold)' },
               { label: '低频 (>5k)', value: totals?.weightDist.hard ?? 0, color: 'var(--wq-fail)' },
+              { label: '词频待补全', value: totals?.weightDist.unknown ?? 0, color: 'var(--wq-dim)' },
             ]}
           />
+          {totals.weightDist.unknown > 0 && <p className="readable mt-3 text-dim">有 {totals.weightDist.unknown} 个已学词暂缺词频资料，下载对应词书后会自动补全。</p>}
         </Panel>
       </div>
 
@@ -381,8 +371,8 @@ export function StatsPage() {
 
       <Panel>
         <SectionHead right="颜色越深，当日词卡练习越多">打卡热力图</SectionHead>
-        <div className="no-scrollbar overflow-x-auto pb-1">
-          <div className="grid w-max grid-flow-col grid-rows-7 gap-[3px]">
+        <div className="overflow-x-auto pb-1" dir="rtl" tabIndex={0} role="region" aria-label="近半年词卡练习热力图">
+          <div className="grid w-max grid-flow-col grid-rows-7 gap-[3px]" dir="ltr">
             {daily?.map(({ date, log }) => {
               const v = log ? log.newLearned + log.reviewsDone : 0
               const level = v === 0 ? 0 : v < 5 ? 1 : v < 15 ? 2 : v < 30 ? 3 : 4
@@ -397,7 +387,7 @@ export function StatsPage() {
               return (
                 <div
                   key={date}
-                  title={`${date}：${v} 词`}
+                  title={`${date}：${v} 词次`}
                   className="h-3 w-3 border border-black"
                   style={{ background: colors[level] }}
                 />
@@ -405,6 +395,17 @@ export function StatsPage() {
             })}
           </div>
         </div>
+        <details className="readable mt-3 text-dim">
+          <summary className="min-h-11 cursor-pointer py-2">查看近半年逐日学习记录</summary>
+          <p className="my-2">同一词的重复复习计入词次；下表列出有词卡练习的日期。</p>
+          <div className="max-h-72 overflow-auto" tabIndex={0} role="region" aria-label="逐日学习记录">
+            <table className="learning-report-table">
+              <caption className="sr-only">近半年词卡学习量与有效学习日</caption>
+              <thead><tr><th scope="col">日期</th><th scope="col">新词</th><th scope="col">复习词次</th><th scope="col">有效日</th></tr></thead>
+              <tbody>{daily.filter(({ log }) => log && (log.newLearned + log.reviewsDone > 0)).reverse().map(({ date, log }) => <tr key={date}><th scope="row">{date}</th><td>{log!.newLearned}</td><td>{log!.reviewsDone}</td><td>{log!.effectiveDay ? '是' : '否'}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </details>
       </Panel>
 
       <Panel>
@@ -481,6 +482,10 @@ export function StatsPage() {
             <p className="readable mt-2 text-px12 text-dim">
               颜色反映已有词卡作答的正确率。题型、词汇难度和样本量会影响结果，可结合自己的时间安排参考。
             </p>
+            <details className="readable mt-3 text-dim">
+              <summary className="min-h-11 cursor-pointer py-2">查看各时段题量与正确率</summary>
+              <ul>{totals.hourly.map(({ hour, n, acc }) => <li key={hour} className="py-1">{hour}:00 至 {hour + 1}:00：{n} 题 · {acc === null ? '样本不足 10 题，暂不比较正确率' : `正确率 ${Math.round(acc * 100)}%`}</li>)}</ul>
+            </details>
           </>
         ) : (
           <p className="readable text-px12 text-dim">

@@ -11,6 +11,7 @@ playwright-report/
 .env.*
 !.env.example
 output/verification/project-introduction/
+output/verification/audit-*/
 *.log
 !output/verification/*.log
 .DS_Store

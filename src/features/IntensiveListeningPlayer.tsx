@@ -272,8 +272,14 @@ export const IntensiveListeningPlayer = forwardRef<IntensiveListeningHandle, Pro
     setSentenceLoop(false); setAbLoop(false); setA(null); setB(null); setError(null)
   }
 
-  function previousSentence() { if (previous) { stop(); previous() } else changeSentence(index - 1) }
-  function nextSentence() { if (next) { stop(); next() } else changeSentence(index + 1) }
+  function previousSentence() {
+    if (previous ? previousDisabled : index === 0) return
+    if (previous) { stop(); previous() } else changeSentence(index - 1)
+  }
+  function nextSentence() {
+    if (next ? nextDisabled : index + 1 >= sentences.length) return
+    if (next) { stop(); next() } else changeSentence(index + 1)
+  }
 
   useImperativeHandle(ref, () => ({ playWhole, playSentence: () => playSentence(), stop: () => stop() }))
 
@@ -291,7 +297,7 @@ export const IntensiveListeningPlayer = forwardRef<IntensiveListeningHandle, Pro
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || target?.isContentEditable || target?.closest('input, textarea, select, audio, video, [role="textbox"], [role="slider"]')) return
       if (event.code === 'Space' && !target?.closest('button, a, summary')) { event.preventDefault(); toggle() }
       else if (event.key === 'ArrowLeft') { event.preventDefault(); previousSentence() }
       else if (event.key === 'ArrowRight') { event.preventDefault(); nextSentence() }
